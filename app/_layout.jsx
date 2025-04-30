@@ -46,7 +46,11 @@ export default function RootLayout() {
         <Stack.Screen name="auth1" />
         <Stack.Screen name="auth2" />
         <Stack.Screen name="auth3" />
+        <Stack.Screen name="home" />
       </Stack>
+
+      
+      
     </AppContextProvider>
   );
 }

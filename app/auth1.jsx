@@ -24,10 +24,7 @@ const LoginScreen = () => {
     const router = useRouter();
     
     const handleLogin = () => {
-        setLoading(true);
-        setTimeout(() => {
-        setLoading(false);
-        }, 2000);
+        router.push('/home');
     };
 
     const handleSignUp = () => {

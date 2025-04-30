@@ -1,6 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { Image } from 'react-native';
-import * as SplashScreen from 'expo-splash-screen';
 
 const AppContext = createContext();
 
