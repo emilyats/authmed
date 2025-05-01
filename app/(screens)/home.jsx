@@ -19,67 +19,44 @@ import ScanIcon from '../../assets/svg/scanicon.svg';
 import BottomBar from '../../assets/svg/bottombar.svg';
 
 export default function HomeScreen() {
-    const [hasPermission, setHasPermission] = useState(null);
-    const [facing, setFacing] = useState('back');
-    const [flashMode, setFlashMode] = useState('off');
-    const [zoom, setZoom] = useState(0);
-    const [photo, setPhoto] = useState(null);
-    const cameraRef = useRef(null);
-    const router = useRouter();
-    
-    const { width, height } = Dimensions.get('window');
+  const [hasPermission, setHasPermission] = useState(null);
+  const [facing, setFacing] = useState('back');
+  const [flashMode, setFlashMode] = useState('off');
+  const [zoom, setZoom] = useState(0);
+  const [photo, setPhoto] = useState(null);
+  const cameraRef = useRef(null);
+  const router = useRouter();
 
-    useEffect(() => {
-        (async () => {
-          const cameraPermission = await Camera.requestCameraPermissionsAsync();
-          setHasPermission(cameraPermission.status === 'granted');
-        })();
-      }, []);
+  const { width, height } = Dimensions.get('window');
 
-    const toggleCameraFacing = () => {
+  useEffect(() => {
+    (async () => {
+      const cameraPermission = await Camera.requestCameraPermissionsAsync();
+      setHasPermission(cameraPermission.status === 'granted');
+    })();
+  }, []);
+
+  const toggleCameraFacing = () => {
     setFacing((current) => (current === 'back' ? 'front' : 'back'));
-    };
+  };
 
-    const toggleFlash = () => {
-        setFlashMode((current) => (current === 'on' ? 'off' : 'on'));
-      };
+  const toggleFlash = () => {
+    setFlashMode((current) => (current === 'on' ? 'off' : 'on'));
+  };
 
   const handleScan = async () => {
     if (cameraRef.current) {
-        const options = {
-          quality: 1,
-          base64: true,
-          skipProcessing: true,
-        };
-        const newPhoto = await cameraRef.current.takePictureAsync(options);
-        setPhoto(newPhoto);
-        console.log('Photo URI:', newPhoto.uri);
-      }
-    };
+      const options = {
+        quality: 1,
+        base64: true,
+        skipProcessing: true,
+      };
+      const newPhoto = await cameraRef.current.takePictureAsync(options);
+      setPhoto(newPhoto);
+      console.log('Photo URI:', newPhoto.uri);
+    }
+  };
 
-    if (hasPermission === null) {
-        return <View style={styles.loadingContainer}><Text style={styles.loadingText}>Requesting camera permission...</Text></View>;
-      }
-      if (!hasPermission) {
-        return (
-          <View style={styles.permissionContainer}>
-            <Text style={styles.permissionText}>Camera permission denied.</Text>
-          </View>
-        );
-    }
-    
-    if (photo) {
-        return (
-          <View style={styles.imageContainer}>
-            <Image style={styles.preview} source={{ uri: photo.uri }} />
-            <View style={styles.btnContainer}>
-              <TouchableOpacity style={styles.btn} onPress={() => setPhoto(null)}>
-                <Ionicons name="trash-outline" size={30} color="black" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        );
-    }
   const navigateToHistory = () => {
     router.push('/history');
   };
@@ -88,87 +65,108 @@ export default function HomeScreen() {
     router.push('/menu');
   };
 
+  if (hasPermission === null) {
+    return <View style={styles.loadingContainer}><Text style={styles.loadingText}>Requesting camera permission...</Text></View>;
+  }
+
+  if (!hasPermission) {
+    return (
+      <View style={styles.permissionContainer}>
+        <Text style={styles.permissionText}>Camera permission denied.</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" />
-      <CameraView
-        ref={cameraRef}
-        style={styles.camera}
-        facing={facing}
-        flash={flashMode}
-        zoom={zoom}
-      >
-        {/* Content inside camera view */}
-      </CameraView>
-      
-      {/* UI Elements layered on top of the camera */}
-      <SafeAreaView style={styles.uiContainer}>
-        {/* Top Camera Controls */}
-        <View style={styles.topBar}>
-          <TouchableOpacity>
-            <Ionicons name="images-outline" size={24} color="white" />
-          </TouchableOpacity>
-          
-          <TouchableOpacity onPress={toggleFlash}>
-            <Ionicons 
-              name={flashMode === 'on' ? "flash" : "flash-off"} 
-              size={24} 
-              color="white" 
-            />
-          </TouchableOpacity>
-          
-          <TouchableOpacity onPress={toggleCameraFacing}>
-            <Ionicons name="camera-reverse-outline" size={24} color="white" />
-          </TouchableOpacity>
-        </View>
 
-        {/* Zoom Slider */}
-        <View style={styles.zoomSlider}>
-          <TouchableOpacity onPress={() => setZoom(Math.max(0, zoom - 0.1))}>
-            <Text style={styles.zoomText}>-</Text>
-          </TouchableOpacity>
-          
-          <Slider
-            style={{flex: 1}}
-            minimumValue={0}
-            maximumValue={1}
-            value={zoom}
-            onValueChange={setZoom}
-            minimumTrackTintColor="#FFFFFF"
-            maximumTrackTintColor="#AAAAAA"
-          />
-          
-          <TouchableOpacity onPress={() => setZoom(Math.min(1, zoom + 0.1))}>
-            <Text style={styles.zoomText}>+</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Scan Button */}
-        <TouchableOpacity style={styles.scanButton} onPress={handleScan}>
-          <Text style={styles.scanButtonText}>Scan</Text>
-        </TouchableOpacity>
-
-        {/* Bottom Navigation - Combined into a single view */}
-        <View style={styles.bottomNavContainer}>
-          <View style={styles.bottomBar}>
-            <BottomBar />
+      {photo ? (
+        <View style={styles.imageContainer}>
+          <Image style={styles.preview} source={{ uri: photo.uri }} />
+          <View style={styles.btnContainer}>
+            <TouchableOpacity style={styles.btn} onPress={() => setPhoto(null)}>
+              <Ionicons name="trash-outline" size={30} color="black" />
+            </TouchableOpacity>
           </View>
-          
-          <TouchableOpacity style={styles.historyIcon} onPress={navigateToHistory}>
-            <HistoryIcon width={30} height={30} fill="white" />
-            <Text style={styles.historyLabel}>History</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.homeButton}>
-            <ScanIcon />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuIcon} onPress={navigateToMenu}>
-            <MenuIcon width={30} height={30} fill="white" />
-            <Text style={styles.menuLabel}>Menu</Text>
-          </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      ) : (
+        <>
+          <CameraView
+            ref={cameraRef}
+            style={styles.camera}
+            facing={facing}
+            flash={flashMode}
+            zoom={zoom}
+          />
+
+          <SafeAreaView style={styles.uiContainer}>
+            {/* Top Camera Controls */}
+            <View style={styles.topBar}>
+              <TouchableOpacity>
+                <Ionicons name="images-outline" size={24} color="white" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={toggleFlash}>
+                <Ionicons 
+                  name={flashMode === 'on' ? "flash" : "flash-off"} 
+                  size={24} 
+                  color="white" 
+                />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={toggleCameraFacing}>
+                <Ionicons name="camera-reverse-outline" size={24} color="white" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Zoom Slider */}
+            <View style={styles.zoomSlider}>
+              <TouchableOpacity onPress={() => setZoom(Math.max(0, zoom - 0.1))}>
+                <Text style={styles.zoomText}>-</Text>
+              </TouchableOpacity>
+
+              <Slider
+                style={{ flex: 1 }}
+                minimumValue={0}
+                maximumValue={1}
+                value={zoom}
+                onValueChange={setZoom}
+                minimumTrackTintColor="#FFFFFF"
+                maximumTrackTintColor="#AAAAAA"
+              />
+
+              <TouchableOpacity onPress={() => setZoom(Math.min(1, zoom + 0.1))}>
+                <Text style={styles.zoomText}>+</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Scan Button */}
+            <TouchableOpacity style={styles.scanButton} onPress={handleScan}>
+              <Text style={styles.scanButtonText}>Scan</Text>
+            </TouchableOpacity>
+
+            {/* Bottom Navigation */}
+            <View style={styles.bottomNavContainer}>
+              <View style={styles.bottomBar}>
+                <BottomBar />
+              </View>
+
+              <TouchableOpacity style={styles.historyIcon} onPress={navigateToHistory}>
+                <HistoryIcon width={30} height={30} fill="white" />
+                <Text style={styles.historyLabel}>History</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.homeButton}>
+                <ScanIcon />
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.menuIcon} onPress={navigateToMenu}>
+                <MenuIcon width={30} height={30} fill="white" />
+                <Text style={styles.menuLabel}>Menu</Text>
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
+        </>
+      )}
     </View>
   );
 }
@@ -187,7 +185,7 @@ const styles = StyleSheet.create({
   },
   uiContainer: {
     flex: 1,
-    backgroundColor: 'transparent', // Transparent background to show camera underneath
+    backgroundColor: 'transparent',
   },
   loadingContainer: {
     flex: 1,
@@ -213,17 +211,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Montserrat_500Medium',
     color: 'white',
-  },
-  permissionButton: {
-    backgroundColor: '#145185',
-    paddingVertical: 12,
-    paddingHorizontal: 30,
-    borderRadius: 10,
-  },
-  permissionButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontFamily: 'Montserrat_600SemiBold',
   },
   topBar: {
     marginTop: StatusBar.currentHeight || 40,
@@ -262,7 +249,7 @@ const styles = StyleSheet.create({
     height: 45,
     justifyContent: 'center',
     alignItems: 'center',
-    width: 150
+    width: 150,
   },
   scanButtonText: {
     color: 'white',
@@ -300,14 +287,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     position: 'absolute',
     bottom: 5,
-    right: 60
+    right: 60,
   },
   historyIcon: {
     justifyContent: 'center',
     alignItems: 'center',
     position: 'absolute',
     bottom: 5,
-    left: 60
+    left: 60,
   },
   menuLabel: {
     color: 'white',
