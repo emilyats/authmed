@@ -1,6 +1,6 @@
 {
   "expo": {
-    "scheme": "AuthMed-app",
+    "scheme": "AuthMed",
     "name": "AuthMed",
     "slug": "AuthMed",
     "version": "1.0.0",
