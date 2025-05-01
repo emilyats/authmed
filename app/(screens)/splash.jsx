@@ -1,8 +1,8 @@
 import { View, ActivityIndicator, Text, Image } from 'react-native';
 import React, { useEffect, useState } from 'react';
-import AuthMedLogo1 from "../assets/svg/authmedlogo1.svg";
+import AuthMedLogo1 from "../../assets/svg/authmedlogo1.svg";
 import { useRouter } from "expo-router";
-import { BackgroundImage, preloadBackgroundImage } from '../components/ImagePreloader';
+import { BackgroundImage, preloadBackgroundImage } from '../../components/ImagePreloader';
 
 export default function SplashScreen() {
   const router = useRouter();

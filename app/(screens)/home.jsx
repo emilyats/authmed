@@ -5,16 +5,18 @@ import {
   StyleSheet, 
   TouchableOpacity,
   SafeAreaView,
-  Image
+  Image,
+  StatusBar,
+  Dimensions
 } from 'react-native';
 import { CameraView, Camera } from 'expo-camera';
 import Slider from '@react-native-community/slider';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import HistoryIcon from '../assets/svg/historyicon.svg';
-import MenuIcon from '../assets/svg/menuicon.svg';
-import ScanIcon from '../assets/svg/scanicon.svg';
-import BottomBar from '../assets/svg/bottombar.svg';
+import HistoryIcon from '../../assets/svg/historyicon.svg';
+import MenuIcon from '../../assets/svg/menuicon.svg';
+import ScanIcon from '../../assets/svg/scanicon.svg';
+import BottomBar from '../../assets/svg/bottombar.svg';
 
 export default function HomeScreen() {
     const [hasPermission, setHasPermission] = useState(null);
@@ -24,6 +26,8 @@ export default function HomeScreen() {
     const [photo, setPhoto] = useState(null);
     const cameraRef = useRef(null);
     const router = useRouter();
+    
+    const { width, height } = Dimensions.get('window');
 
     useEffect(() => {
         (async () => {
@@ -54,22 +58,26 @@ export default function HomeScreen() {
     };
 
     if (hasPermission === null) {
-        return <View><Text>Requesting camera permission...</Text></View>;
+        return <View style={styles.loadingContainer}><Text style={styles.loadingText}>Requesting camera permission...</Text></View>;
       }
       if (!hasPermission) {
-        return <View><Text>Camera permission denied.</Text></View>;
+        return (
+          <View style={styles.permissionContainer}>
+            <Text style={styles.permissionText}>Camera permission denied.</Text>
+          </View>
+        );
     }
     
     if (photo) {
         return (
-          <SafeAreaView style={styles.imageContainer}>
+          <View style={styles.imageContainer}>
             <Image style={styles.preview} source={{ uri: photo.uri }} />
             <View style={styles.btnContainer}>
               <TouchableOpacity style={styles.btn} onPress={() => setPhoto(null)}>
                 <Ionicons name="trash-outline" size={30} color="black" />
               </TouchableOpacity>
             </View>
-          </SafeAreaView>
+          </View>
         );
     }
   const navigateToHistory = () => {
@@ -81,7 +89,8 @@ export default function HomeScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      <StatusBar translucent backgroundColor="transparent" />
       <CameraView
         ref={cameraRef}
         style={styles.camera}
@@ -89,6 +98,11 @@ export default function HomeScreen() {
         flash={flashMode}
         zoom={zoom}
       >
+        {/* Content inside camera view */}
+      </CameraView>
+      
+      {/* UI Elements layered on top of the camera */}
+      <SafeAreaView style={styles.uiContainer}>
         {/* Top Camera Controls */}
         <View style={styles.topBar}>
           <TouchableOpacity>
@@ -134,24 +148,28 @@ export default function HomeScreen() {
           <Text style={styles.scanButtonText}>Scan</Text>
         </TouchableOpacity>
 
-        {/* Bottom Navigation */}
-        <TouchableOpacity style={styles.homeButton}>
-            <ScanIcon/>
-          </TouchableOpacity>
-        <View style={styles.bottomBar}>
-            <BottomBar/>
-        </View>
-        <TouchableOpacity style={styles.historyIcon} onPress={navigateToHistory}>
-            <HistoryIcon width={40} height={40} fill="white" />
+        {/* Bottom Navigation - Combined into a single view */}
+        <View style={styles.bottomNavContainer}>
+          <View style={styles.bottomBar}>
+            <BottomBar />
+          </View>
+          
+          <TouchableOpacity style={styles.historyIcon} onPress={navigateToHistory}>
+            <HistoryIcon width={30} height={30} fill="white" />
             <Text style={styles.historyLabel}>History</Text>
-        </TouchableOpacity>
+          </TouchableOpacity>
 
-        <TouchableOpacity style={styles.menuIcon} onPress={navigateToMenu}>
-            <MenuIcon width={40} height={40} fill="white" />
+          <TouchableOpacity style={styles.homeButton}>
+            <ScanIcon />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.menuIcon} onPress={navigateToMenu}>
+            <MenuIcon width={30} height={30} fill="white" />
             <Text style={styles.menuLabel}>Menu</Text>
-        </TouchableOpacity>
-      </CameraView>
-    </SafeAreaView>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    </View>
   );
 }
 
@@ -161,28 +179,40 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
   camera: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  uiContainer: {
     flex: 1,
+    backgroundColor: 'transparent', // Transparent background to show camera underneath
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#000',
   },
   loadingText: {
     fontSize: 16,
     fontFamily: 'Montserrat_500Medium',
+    color: 'white',
   },
   permissionContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+    backgroundColor: '#000',
   },
   permissionText: {
     textAlign: 'center',
     marginBottom: 20,
     fontSize: 16,
     fontFamily: 'Montserrat_500Medium',
+    color: 'white',
   },
   permissionButton: {
     backgroundColor: '#145185',
@@ -196,8 +226,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Montserrat_600SemiBold',
   },
   topBar: {
-    position: 'absolute',
-    top: 40,
+    marginTop: StatusBar.currentHeight || 40,
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
@@ -209,7 +238,7 @@ const styles = StyleSheet.create({
   },
   zoomSlider: {
     position: 'absolute',
-    bottom: 180,
+    bottom: 190,
     flexDirection: 'row',
     alignItems: 'center',
     width: '80%',
@@ -224,7 +253,7 @@ const styles = StyleSheet.create({
   },
   scanButton: {
     position: 'absolute',
-    bottom: 120,
+    bottom: 130,
     alignSelf: 'center',
     backgroundColor: '#145185',
     borderRadius: 14,
@@ -240,20 +269,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'Montserrat_600SemiBold',
   },
+  bottomNavContainer: {
+    position: 'absolute',
+    bottom: 20,
+    width: '100%',
+    height: 80,
+  },
   bottomBar: {
     position: 'absolute',
     bottom: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     width: '100%',
     height: 80,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: -5 },
-    shadowOpacity: 0.5,
-    shadowRadius: 7,
   },
   homeButton: {
     width: 70,
@@ -262,9 +288,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     position: 'absolute',
-    bottom: 25,
+    paddingBottom: 10,
     alignSelf: 'center',
-    zIndex: 10,
     shadowColor: '#3E719E',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.5,
@@ -294,7 +319,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 12,
     marginTop: 4,
-    paddingLeft: 4,
     fontFamily: 'Montserrat_600SemiBold',
   },
   imageContainer: {

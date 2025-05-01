@@ -10,8 +10,8 @@ import {
   Keyboard,
   TouchableWithoutFeedback
 } from 'react-native';
-import { useRouter } from 'expo-router'; // Import useRouter
-import AuthMedLogo1 from "../assets/svg/authmedlogo1.svg";
+import { useRouter } from 'expo-router';
+import AuthMedLogo1 from '../../assets/svg/authmedlogo1.svg';
 
 const AuthMedLogo = () => (
   <View style={styles.logoContainer}>

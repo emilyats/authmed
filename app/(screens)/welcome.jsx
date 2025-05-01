@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { ImageBackground, Text, View, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import AuthMedLogo2 from "../assets/svg/authmedlogo2.svg";
-import { BackgroundImage } from '../components/ImagePreloader';
+import AuthMedLogo2 from "../../assets/svg/authmedlogo2.svg";
+import { BackgroundImage } from '../../components/ImagePreloader';
 
 export default function WelcomeScreen() {
     const router = useRouter();

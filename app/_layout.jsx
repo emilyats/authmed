@@ -13,6 +13,7 @@ import { Montserrat_100Thin,
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { AppContextProvider } from '../components/AppContextProvider';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -38,19 +39,18 @@ export default function RootLayout() {
   }
 
   return (
+    <SafeAreaProvider>
     <AppContextProvider>
       <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="splash" />
-        <Stack.Screen name="welcome" />
-        <Stack.Screen name="auth1" />
-        <Stack.Screen name="auth2" />
-        <Stack.Screen name="auth3" />
-        <Stack.Screen name="home" />
+        <Stack.Screen name="(screens)/index" />
+        <Stack.Screen name="(screens)/splash" />
+        <Stack.Screen name="(screens)/welcome" />
+        <Stack.Screen name="(screens)/auth1" />
+        <Stack.Screen name="(screens)/auth2" />
+        <Stack.Screen name="(screens)/auth3" />
+        <Stack.Screen name="(screens)/home" />
       </Stack>
-
-      
-      
     </AppContextProvider>
+    </SafeAreaProvider>
   );
 }
