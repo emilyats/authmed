@@ -1,26 +1,23 @@
 import { View, ActivityIndicator, Text, Image } from 'react-native';
 import React, { useEffect, useState } from 'react';
-import AuthMedLogo1 from "../../assets/svg/authmedlogo1.svg";
+import AuthMedLogo1 from "../assets/svg/authmedlogo1.svg";
 import { useRouter } from "expo-router";
-import { BackgroundImage, preloadBackgroundImage } from '../../components/ImagePreloader';
+import { BackgroundImage, preloadBackgroundImage } from '../components/ImagePreloader';
+import { onAuthStateChanged } from 'firebase/auth';
+import { FIREBASE_AUTH } from '../firebaseConfig';
 
 export default function SplashScreen() {
-  const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     const loadAssets = async () => {
       try {
         await preloadBackgroundImage();
-        
-        setTimeout(() => {
-          setIsLoading(false);
-        }, 1500);
+        setIsLoading(false);
       } catch (error) {
         console.error('Error in asset loading:', error);
-        setTimeout(() => {
-          setIsLoading(false);
-        }, 2000);
+        setIsLoading(false);
       }
     };
 
@@ -28,10 +25,19 @@ export default function SplashScreen() {
   }, []);
 
   useEffect(() => {
-    if (!isLoading) {
-      router.replace("/welcome");
-    }
-  }, [isLoading, router]);
+    // Set up auth state listener
+    const unsubscribe = onAuthStateChanged(FIREBASE_AUTH, (user) => {
+      if (user) {
+        // User is signed in, go to home
+        router.replace('/home');
+      } else {
+        // No user is signed in, go to welcome
+        router.replace('/welcome');
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   return (
     <View style={{ flex: 1, backgroundColor: 'white' }}>

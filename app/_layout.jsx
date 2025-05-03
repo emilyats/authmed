@@ -40,17 +40,14 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-    <AppContextProvider>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(screens)/index" />
-        <Stack.Screen name="(screens)/splash" />
-        <Stack.Screen name="(screens)/welcome" />
-        <Stack.Screen name="(screens)/auth1" />
-        <Stack.Screen name="(screens)/auth2" />
-        <Stack.Screen name="(screens)/auth3" />
-        <Stack.Screen name="(screens)/home" />
-      </Stack>
-    </AppContextProvider>
+      <AppContextProvider>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="splash" />
+          <Stack.Screen name="welcome" />
+          <Stack.Screen name="(auth)"  />
+          <Stack.Screen name="(tabs)"  />
+        </Stack>
+      </AppContextProvider>
     </SafeAreaProvider>
   );
 }

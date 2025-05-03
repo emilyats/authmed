@@ -13,10 +13,6 @@ import { CameraView, Camera } from 'expo-camera';
 import Slider from '@react-native-community/slider';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import HistoryIcon from '../../assets/svg/historyicon.svg';
-import MenuIcon from '../../assets/svg/menuicon.svg';
-import ScanIcon from '../../assets/svg/scanicon.svg';
-import BottomBar from '../../assets/svg/bottombar.svg';
 
 export default function HomeScreen() {
   const [hasPermission, setHasPermission] = useState(null);
@@ -55,14 +51,6 @@ export default function HomeScreen() {
       setPhoto(newPhoto);
       console.log('Photo URI:', newPhoto.uri);
     }
-  };
-
-  const navigateToHistory = () => {
-    router.push('/history');
-  };
-
-  const navigateToMenu = () => {
-    router.push('/menu');
   };
 
   if (hasPermission === null) {
@@ -143,27 +131,6 @@ export default function HomeScreen() {
             <TouchableOpacity style={styles.scanButton} onPress={handleScan}>
               <Text style={styles.scanButtonText}>Scan</Text>
             </TouchableOpacity>
-
-            {/* Bottom Navigation */}
-            <View style={styles.bottomNavContainer}>
-              <View style={styles.bottomBar}>
-                <BottomBar />
-              </View>
-
-              <TouchableOpacity style={styles.historyIcon} onPress={navigateToHistory}>
-                <HistoryIcon width={30} height={30} fill="white" />
-                <Text style={styles.historyLabel}>History</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.homeButton}>
-                <ScanIcon />
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.menuIcon} onPress={navigateToMenu}>
-                <MenuIcon width={30} height={30} fill="white" />
-                <Text style={styles.menuLabel}>Menu</Text>
-              </TouchableOpacity>
-            </View>
           </SafeAreaView>
         </>
       )}
@@ -213,13 +180,13 @@ const styles = StyleSheet.create({
     color: 'white',
   },
   topBar: {
-    marginTop: StatusBar.currentHeight || 40,
+    marginTop: StatusBar.currentHeight || 20,
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
     width: '90%',
     alignSelf: 'center',
-    paddingVertical: 12,
+    paddingVertical: 10,
     backgroundColor: 'rgba(20, 81, 133, 0.8)',
     borderRadius: 12,
   },
@@ -254,58 +221,6 @@ const styles = StyleSheet.create({
   scanButtonText: {
     color: 'white',
     fontSize: 12,
-    fontFamily: 'Montserrat_600SemiBold',
-  },
-  bottomNavContainer: {
-    position: 'absolute',
-    bottom: 20,
-    width: '100%',
-    height: 80,
-  },
-  bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    width: '100%',
-    height: 80,
-  },
-  homeButton: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'absolute',
-    paddingBottom: 10,
-    alignSelf: 'center',
-    shadowColor: '#3E719E',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-  },
-  menuIcon: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'absolute',
-    bottom: 5,
-    right: 60,
-  },
-  historyIcon: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'absolute',
-    bottom: 5,
-    left: 60,
-  },
-  menuLabel: {
-    color: 'white',
-    fontSize: 12,
-    marginTop: 4,
-    fontFamily: 'Montserrat_600SemiBold',
-  },
-  historyLabel: {
-    color: 'white',
-    fontSize: 12,
-    marginTop: 4,
     fontFamily: 'Montserrat_600SemiBold',
   },
   imageContainer: {

@@ -15,5 +15,5 @@
     "**/*.ts",
     "**/*.tsx",
     "svg.d.ts"
-, "app/(screens)/auth1.Jsx"  ]
+, "app/(tabs)/auth1.Jsx"  ]
 }
