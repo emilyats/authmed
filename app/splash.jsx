@@ -7,17 +7,22 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { FIREBASE_AUTH } from '../firebaseConfig';
 
 export default function SplashScreen() {
-  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const loadAssets = async () => {
       try {
         await preloadBackgroundImage();
-        setIsLoading(false);
+        
+        setTimeout(() => {
+          setIsLoading(false);
+        }, 1500);
       } catch (error) {
         console.error('Error in asset loading:', error);
-        setIsLoading(false);
+        setTimeout(() => {
+          setIsLoading(false);
+        }, 2000);
       }
     };
 
@@ -25,19 +30,18 @@ export default function SplashScreen() {
   }, []);
 
   useEffect(() => {
-    // Set up auth state listener
-    const unsubscribe = onAuthStateChanged(FIREBASE_AUTH, (user) => {
-      if (user) {
-        // User is signed in, go to home
-        router.replace('/home');
-      } else {
-        // No user is signed in, go to welcome
-        router.replace('/welcome');
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
+    if (!isLoading) {
+      // Check auth state after splash loading
+      const unsubscribe = onAuthStateChanged(FIREBASE_AUTH, (user) => {
+        if (user) {
+          router.replace('(tabs)/home');
+        } else {
+          router.replace('/welcome');
+        }
+      });
+      return () => unsubscribe();
+    }
+  }, [isLoading, router]);
 
   return (
     <View style={{ flex: 1, backgroundColor: 'white' }}>
