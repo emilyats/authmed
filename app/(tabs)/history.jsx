@@ -11,6 +11,8 @@ export default function HistoryScreen() {
   const [history, setHistory] = useState([]);
   const router = useRouter();
   const user = FIREBASE_AUTH.currentUser;
+  const { width, height } = Dimensions.get('window');
+  const isSmallScreen = width <= 375;
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -45,23 +47,23 @@ export default function HistoryScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <AntDesign name="arrowleft" size={24} color="#35383F" />
-          <Text style={styles.backText}>Back</Text>
+          <AntDesign name="arrowleft" size={isSmallScreen ? 20 : 24} color="#35383F" />
+          <Text style={[styles.backText, { fontSize: isSmallScreen ? 14 : 16 }]}>Back</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>History</Text>
+        <Text style={[styles.title, { fontSize: isSmallScreen ? 20 : 22 }]}>History</Text>
       </View>
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#145185" />
         </View>
       ) : history.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>You do not have any{'\n'}scanned medicines yet!</Text>
+        <View style={[styles.emptyContainer, { marginTop: isSmallScreen ? 120 : 160 }]}>
+          <Text style={[styles.emptyText, { fontSize: isSmallScreen ? 13 : 15 }]}>You do not have any{'\n'}scanned medicines yet!</Text>
           <TouchableOpacity onPress={handleStartScanning}>
-            <Text style={styles.startScanning}>Start Scanning</Text>
+            <Text style={[styles.startScanning, { fontSize: isSmallScreen ? 13 : 15 }]}>Start Scanning</Text>
           </TouchableOpacity>
           <View style={styles.arrowContainer}>
-            <LongArrow/>
+            <LongArrow width={isSmallScreen ? 200 : 250} height={isSmallScreen ? 200 : 250} />
           </View>
         </View>
       ) : (
@@ -69,10 +71,13 @@ export default function HistoryScreen() {
           {history.map((item, idx) => (
             <View key={item.id || idx} style={styles.card}>
               <View style={styles.cardTextContainer}>
-                <Text style={styles.cardTitle}>{item.medicineName || 'Medicine Name'}</Text>
-                <Text style={styles.cardSubtitle}>{item.scannedAt ? new Date(item.scannedAt.seconds * 1000).toLocaleString() : 'mm/dd/yyyy 00:00'}</Text>
+                <Text style={[styles.cardTitle, { fontSize: isSmallScreen ? 13 : 15 }]}>{item.medicineName || 'Medicine Name'}</Text>
+                <Text style={[styles.cardSubtitle, { fontSize: isSmallScreen ? 10 : 11 }]}>{item.scannedAt ? new Date(item.scannedAt.seconds * 1000).toLocaleString() : 'mm/dd/yyyy 00:00'}</Text>
               </View>
-              <View style={styles.cardImagePlaceholder} />
+              <View style={[styles.cardImagePlaceholder, { 
+                width: isSmallScreen ? 30 : 36,
+                height: isSmallScreen ? 30 : 36
+              }]} />
             </View>
           ))}
         </ScrollView>
@@ -80,8 +85,6 @@ export default function HistoryScreen() {
     </SafeAreaView>
   );
 }
-
-const { width } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
   container: {
@@ -103,12 +106,10 @@ const styles = StyleSheet.create({
   },
   backText: {
     fontFamily: 'Montserrat_500Medium',
-    fontSize: 16,
     color: '#35383F',
     marginLeft: 8,
   },
   title: {
-    fontSize: 22,
     fontFamily: 'Montserrat_700Bold',
     color: '#35383F',
     marginBottom: 18,
@@ -124,25 +125,23 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 160,
   },
   emptyText: {
     color: '#145185',
     fontFamily: 'Montserrat_500Medium',
-    fontSize: 15,
     textAlign: 'center',
     marginBottom: 8,
   },
   startScanning: {
     color: '#145185',
     fontFamily: 'Montserrat_700Bold',
-    fontSize: 15,
-    marginBottom: 10,
     textAlign: 'center',
+    marginBottom: 10,
   },
   arrowContainer: {
     alignItems: 'center',
     marginTop: 15,
+    marginBottom: 80
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -169,17 +168,13 @@ const styles = StyleSheet.create({
   cardTitle: {
     color: 'white',
     fontFamily: 'Montserrat_700Bold',
-    fontSize: 15,
     marginBottom: 2,
   },
   cardSubtitle: {
     color: 'white',
     fontFamily: 'Montserrat_500Medium',
-    fontSize: 11,
   },
   cardImagePlaceholder: {
-    width: 36,
-    height: 36,
     backgroundColor: '#35383F',
     borderRadius: 6,
     marginLeft: 16,

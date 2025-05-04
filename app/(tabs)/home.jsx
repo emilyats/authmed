@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -10,12 +10,14 @@ import {
   Dimensions
 } from 'react-native';
 import { CameraView, Camera } from 'expo-camera';
+import * as MediaLibrary from 'expo-media-library';
 import Slider from '@react-native-community/slider';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function HomeScreen() {
   const [hasPermission, setHasPermission] = useState(null);
+  const [showCamera, setShowCamera] = useState(false);
   const [facing, setFacing] = useState('back');
   const [flashMode, setFlashMode] = useState('off');
   const [zoom, setZoom] = useState(0);
@@ -25,12 +27,57 @@ export default function HomeScreen() {
 
   const { width, height } = Dimensions.get('window');
 
+  const checkPermissions = async () => {
+    try {
+      console.log("[CAM] Requesting permissions");
+      const [mediaStatus, cameraStatus] = await Promise.all([
+        MediaLibrary.requestPermissionsAsync(),
+        Camera.requestCameraPermissionsAsync()
+      ]);
+      setHasPermission(cameraStatus.status === 'granted');
+      return cameraStatus.status === 'granted';
+    } catch (error) {
+      console.error("[CAM] Permission error:", error);
+      return false;
+    }
+  };
+
   useEffect(() => {
-    (async () => {
-      const cameraPermission = await Camera.requestCameraPermissionsAsync();
-      setHasPermission(cameraPermission.status === 'granted');
-    })();
+    let mounted = true;
+
+    const setupCamera = async () => {
+      const hasPermission = await checkPermissions();
+      if (mounted && hasPermission) {
+        setShowCamera(true);
+      }
+    };
+
+    setupCamera();
+
+    return () => {
+      mounted = false;
+      setShowCamera(false);
+      if (cameraRef.current) {
+        cameraRef.current.pausePreview();
+      }
+    };
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (hasPermission) {
+        if (cameraRef.current) {
+          cameraRef.current.resumePreview();
+        }
+      }
+
+      return () => {
+        if (cameraRef.current) {
+          cameraRef.current.pausePreview();
+        }
+      };
+    }, [hasPermission])
+  );
 
   const toggleCameraFacing = () => {
     setFacing((current) => (current === 'back' ? 'front' : 'back'));
@@ -53,6 +100,10 @@ export default function HomeScreen() {
     }
   };
 
+  const handleBackToCamera = () => {
+    setPhoto(null);
+  };
+
   if (hasPermission === null) {
     return <View style={styles.loadingContainer}><Text style={styles.loadingText}>Requesting camera permission...</Text></View>;
   }
@@ -65,75 +116,72 @@ export default function HomeScreen() {
     );
   }
 
+  if (photo) {
+    return (
+      <View style={styles.container}>
+        <Image style={styles.preview} source={{ uri: photo.uri }} />
+        <TouchableOpacity onPress={handleBackToCamera} style={styles.backButton}>
+          <Ionicons name="trash-outline" size={24} color="white" />
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <StatusBar translucent backgroundColor="transparent" />
+      <CameraView
+        ref={cameraRef}
+        style={styles.camera}
+        facing={facing}
+        flash={flashMode}
+        zoom={zoom}
+      />
 
-      {photo ? (
-        <View style={styles.imageContainer}>
-          <Image style={styles.preview} source={{ uri: photo.uri }} />
-          <View style={styles.btnContainer}>
-            <TouchableOpacity style={styles.btn} onPress={() => setPhoto(null)}>
-              <Ionicons name="trash-outline" size={30} color="black" />
-            </TouchableOpacity>
-          </View>
+      <SafeAreaView style={styles.uiContainer}>
+        {/* Top Camera Controls */}
+        <View style={styles.topBar}>
+          <TouchableOpacity>
+            <Ionicons name="images-outline" size={24} color="white" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={toggleFlash}>
+            <Ionicons 
+              name={flashMode === 'on' ? "flash" : "flash-off"} 
+              size={24} 
+              color="white" 
+            />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={toggleCameraFacing}>
+            <Ionicons name="camera-reverse-outline" size={24} color="white" />
+          </TouchableOpacity>
         </View>
-      ) : (
-        <>
-          <CameraView
-            ref={cameraRef}
-            style={styles.camera}
-            facing={facing}
-            flash={flashMode}
-            zoom={zoom}
+
+        {/* Zoom Slider */}
+        <View style={styles.zoomSlider}>
+          <TouchableOpacity onPress={() => setZoom(Math.max(0, zoom - 0.1))}>
+            <Text style={styles.zoomText}>-</Text>
+          </TouchableOpacity>
+
+          <Slider
+            style={{ flex: 1 }}
+            minimumValue={0}
+            maximumValue={1}
+            value={zoom}
+            onValueChange={setZoom}
+            minimumTrackTintColor="#FFFFFF"
+            maximumTrackTintColor="#AAAAAA"
           />
 
-          <SafeAreaView style={styles.uiContainer}>
-            {/* Top Camera Controls */}
-            <View style={styles.topBar}>
-              <TouchableOpacity>
-                <Ionicons name="images-outline" size={24} color="white" />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={toggleFlash}>
-                <Ionicons 
-                  name={flashMode === 'on' ? "flash" : "flash-off"} 
-                  size={24} 
-                  color="white" 
-                />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={toggleCameraFacing}>
-                <Ionicons name="camera-reverse-outline" size={24} color="white" />
-              </TouchableOpacity>
-            </View>
+          <TouchableOpacity onPress={() => setZoom(Math.min(1, zoom + 0.1))}>
+            <Text style={styles.zoomText}>+</Text>
+          </TouchableOpacity>
+        </View>
 
-            {/* Zoom Slider */}
-            <View style={styles.zoomSlider}>
-              <TouchableOpacity onPress={() => setZoom(Math.max(0, zoom - 0.1))}>
-                <Text style={styles.zoomText}>-</Text>
-              </TouchableOpacity>
-
-              <Slider
-                style={{ flex: 1 }}
-                minimumValue={0}
-                maximumValue={1}
-                value={zoom}
-                onValueChange={setZoom}
-                minimumTrackTintColor="#FFFFFF"
-                maximumTrackTintColor="#AAAAAA"
-              />
-
-              <TouchableOpacity onPress={() => setZoom(Math.min(1, zoom + 0.1))}>
-                <Text style={styles.zoomText}>+</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Scan Button */}
-            <TouchableOpacity style={styles.scanButton} onPress={handleScan}>
-              <Text style={styles.scanButtonText}>Scan</Text>
-            </TouchableOpacity>
-          </SafeAreaView>
-        </>
-      )}
+        {/* Scan Button */}
+        <TouchableOpacity style={styles.scanButton} onPress={handleScan}>
+          <Text style={styles.scanButtonText}>Scan</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
     </View>
   );
 }
@@ -144,6 +192,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
   camera: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
     position: 'absolute',
     top: 0,
     left: 0,
@@ -232,6 +283,10 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
   },
   btnContainer: {
+    position: 'absolute',
+    bottom: 20,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
     backgroundColor: '#fff',
@@ -239,5 +294,17 @@ const styles = StyleSheet.create({
   },
   btn: {
     marginHorizontal: 20,
+  },
+  backButton: {
+    position: 'absolute',
+    bottom: 130,
+    alignSelf: 'center',
+    backgroundColor: '#145185',
+    borderRadius: 25,
+    paddingVertical: 12,
+    paddingHorizontal: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 100,
   },
 });

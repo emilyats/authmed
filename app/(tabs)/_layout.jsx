@@ -1,16 +1,19 @@
 import { Stack } from 'expo-router';
-import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, Dimensions, Platform } from 'react-native';
 import { useRouter, usePathname, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import HistoryIcon from '../../assets/svg/historyicon.svg';
 import MenuIcon from '../../assets/svg/menuicon.svg';
 import ScanIcon from '../../assets/svg/scanicon.svg';
 import BottomBar from '../../assets/svg/bottombar.svg';
+import { Shadow } from 'react-native-shadow-2';
 
 export default function TabsLayout() {
   const router = useRouter();
   const pathname = usePathname();
   const [activeScreen, setActiveScreen] = useState('home'); // Default to home
+  const { width, height } = Dimensions.get('window');
+  const isSmallScreen = width <= 375;
   
   // This effect runs whenever the screen gains focus
   useFocusEffect(
@@ -71,12 +74,44 @@ export default function TabsLayout() {
           }}
         />
       </Stack>
+      <View style={styles.bottomBar}>
+      <Shadow
+        distance={15}
+        startColor="#00000020"
+        endColor="#00000000"
+        offset={[0, 25]}
+        style={[{
+          bottom: 0
+        }]}
+      >
+        <BottomBar width={width}/>
+      </Shadow>
+      </View>
+      <TouchableOpacity 
+        style={[
+          styles.homeButton,
+          { 
+            bottom: isSmallScreen ? 22 : 25
+          }
+        ]} 
+        onPress={navigateToHome}
+        disabled={activeScreen === 'home'}
+      >
+        <Shadow
+          distance={10}
+          startColor={activeScreen === 'home' ? '#FFFFFF15' : '#3E719E40'}
+          endColor={activeScreen === 'home' ? '#FFFFFF00' : '#3E719E00'}
+          offset={[0, 0]}
+        >
+          <View style={styles.homeButtonContainer}>
+            <ScanIcon width={isSmallScreen ? 75 : 90} />
+          </View>
+        </Shadow>
+      </TouchableOpacity>
 
-      <View style={styles.bottomNavContainer}>
-        <View style={styles.bottomBar}>
-          <BottomBar />
-        </View>
-
+      <View style={[styles.bottomNavContainer, {
+        bottom: isSmallScreen ? 0 : 7
+      }]}>
         <TouchableOpacity 
           style={[
             styles.historyIcon,
@@ -85,25 +120,23 @@ export default function TabsLayout() {
           onPress={navigateToHistory}
           disabled={activeScreen === 'history'}
         >
-          <HistoryIcon 
-            width={30} 
-            height={30} 
-          />
+          <Shadow
+            distance={10}
+            startColor={activeScreen === 'history' ? '#FFFFFF20' : '#00000000'}
+            endColor="#00000000"
+            offset={[0, 0]}
+          >
+            <View style={styles.iconContainer}>
+              <HistoryIcon 
+                width={Platform.OS === 'ios' ? 30 : 25}
+                height={Platform.OS === 'ios' ? 30 : 25} 
+              />
+            </View>
+          </Shadow>
           <Text style={[
             styles.historyLabel,
             activeScreen === 'history'
           ]}>History</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={[
-            styles.homeButton,
-            activeScreen === 'home' && styles.activeHomeButton
-          ]} 
-          onPress={navigateToHome}
-          disabled={activeScreen === 'home'}
-        >
-          <ScanIcon />
         </TouchableOpacity>
 
         <TouchableOpacity 
@@ -113,10 +146,19 @@ export default function TabsLayout() {
           onPress={navigateToMenu}
           disabled={activeScreen === 'menu'}
         >
-          <MenuIcon 
-            width={30} 
-            height={30} 
-          />
+          <Shadow
+            distance={10}
+            startColor={activeScreen === 'menu' ? '#FFFFFF20' : '#00000000'}
+            endColor="#00000000"
+            offset={[0, 0]}
+          >
+            <View style={styles.iconContainer}>
+              <MenuIcon 
+                width={Platform.OS === 'ios' ? 30 : 25}
+                height={Platform.OS === 'ios' ? 30 : 25} 
+              />
+            </View>
+          </Shadow>
           <Text style={[
             styles.menuLabel,
             activeScreen === 'menu'
@@ -134,7 +176,7 @@ const styles = StyleSheet.create({
   },
   bottomNavContainer: {
     position: 'absolute',
-    bottom: 20,
+    bottom: 0,
     width: '100%',
     height: 80,
   },
@@ -143,6 +185,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: '100%',
     height: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   homeButton: {
     width: 70,
@@ -151,31 +195,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     position: 'absolute',
-    paddingBottom: 10,
     alignSelf: 'center',
-    shadowColor: '#3E719E',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
-  },
-  activeHomeButton: {
-    shadowColor: 'white',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 5,
   },
   menuIcon: {
     justifyContent: 'center',
     alignItems: 'center',
     position: 'absolute',
-    bottom: 5,
+    bottom: 10,
     right: 60,
   },
   historyIcon: {
     justifyContent: 'center',
     alignItems: 'center',
     position: 'absolute',
-    bottom: 5,
+    bottom: 10,
     left: 60,
   },
   menuLabel: {
@@ -195,5 +228,19 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
     shadowRadius: 10,
-  }
+  },
+  iconContainer: {
+    borderRadius: 15,
+    overflow: 'hidden',
+    backgroundColor: 'transparent',
+  },
+  homeButtonContainer: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    overflow: 'hidden',
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });

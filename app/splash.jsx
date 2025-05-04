@@ -1,4 +1,4 @@
-import { View, ActivityIndicator, Text, Image } from 'react-native';
+import { View, ActivityIndicator, Text, Image, Dimensions } from 'react-native';
 import React, { useEffect, useState } from 'react';
 import AuthMedLogo1 from "../assets/svg/authmedlogo1.svg";
 import { useRouter } from "expo-router";
@@ -9,6 +9,7 @@ import { FIREBASE_AUTH } from '../firebaseConfig';
 export default function SplashScreen() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
+  const { height, width } = Dimensions.get('window');
 
   useEffect(() => {
     const loadAssets = async () => {
@@ -50,16 +51,27 @@ export default function SplashScreen() {
         style={{ width: 1, height: 1, position: 'absolute', opacity: 0 }}
       />
       
-      <View style={{ alignItems: 'center', marginTop: 350 }}>
+      <View style={{ 
+        alignItems: 'center', 
+        marginTop: height * 0.35,
+        transform: [{ scale: Math.min(width / 400, 1) }] 
+      }}>
         <AuthMedLogo1 width={250} height={250} />
       </View>
       
-      <View style={{ flex: 1, justifyContent: 'flex-end', alignItems: 'center', marginBottom: 150 }}>
+      <View style={{ 
+        flex: 1, 
+        justifyContent: 'flex-end', 
+        alignItems: 'center', 
+        marginBottom: height * 0.15,
+        transform: [{ scale: Math.min(width / 400, 1) }] 
+      }}>
         <ActivityIndicator size="large" color="#145185" />
         <Text style={{ 
           fontFamily: 'Montserrat_500Medium', 
           color: '#145185', 
-          marginTop: 15 
+          marginTop: 15,
+          fontSize: Math.min(width * 0.04, 16)
         }}>
           {isLoading ? "Loading..." : "Ready!"}
         </Text>

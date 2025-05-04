@@ -8,7 +8,11 @@ import {
   SafeAreaView,
   ActivityIndicator,
   Keyboard,
-  TouchableWithoutFeedback
+  TouchableWithoutFeedback,
+  Dimensions,
+  Platform,
+  ScrollView,
+  KeyboardAvoidingView
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import AuthMedLogo1 from '../../assets/svg/authmedlogo1.svg';
@@ -22,6 +26,9 @@ const AuthMedLogo = () => (
 );
 
 const LoginScreen = () => {
+    const { height, width } = Dimensions.get('window');
+    const isSmallScreen = width < 375;
+    const scale = Math.min(width / 400, 1);
     const [loading, setLoading] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -69,7 +76,7 @@ const LoginScreen = () => {
             }
     
             console.log('Login successful:', user);
-            router.replace('/home'); // Navigate to your home screen
+            router.replace('(tabs)/home'); // Navigate to your home screen
         } catch (error) {
             console.log(error);
             alert('Login failed: ' + error.message);
@@ -96,85 +103,109 @@ const LoginScreen = () => {
     };
   
     return (
-    <TouchableWithoutFeedback onPress={dismissKeyboard}>
-    <SafeAreaView style={styles.container}>
-        <View style={styles.formContainer}>
-        <AuthMedLogo />
-        
-        <Text style={styles.headerText}>Login to Your Account</Text>
-        
-        <View style={styles.labelContainer}>
-            <Text style={styles.labelText}>Email</Text>
-            {emailError && <Text style={styles.errorText}>*Email missing*</Text>}
-        </View>
-        <TextInput
-          style={[styles.input, emailError && styles.inputError]}
-          placeholder="Enter your email"
-          value={email}
-          onChangeText={(text) => {
-            setEmail(text);
-            if (text.trim()) setEmailError(false);
-          }}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-        
-        <View style={styles.labelContainer}>
-            <Text style={styles.labelText}>Password</Text>
-            {passwordError && <Text style={styles.errorText}>*Password missing*</Text>}
-        </View>
-        <TextInput
-          style={[styles.input, passwordError && styles.inputError]}
-          secureTextEntry
-          placeholder="Enter your password"
-          value={password}
-          onChangeText={(text) => {
-            setPassword(text);
-            if (text.trim()) setPasswordError(false);
-          }}
-          autoCapitalize="none"
-        />
-        
-        <View style={styles.forgotPassContainer}>
-            <Text style={styles.forgotPasswordText}>Forgot your password? </Text>
-            <TouchableOpacity onPress={handleReset}>
-              <Text style={styles.resetText}>Reset</Text>
-            </TouchableOpacity>
-        </View>
-        
-        <TouchableOpacity 
-            style={styles.loginButton}
-            onPress={handleLogin}
-            disabled={loading}
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={{ flex: 1 }}
+    >
+      <SafeAreaView style={styles.container}>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+          style={{ flex: 1 }}
         >
-            {loading ? (
-              <ActivityIndicator size="small" color="white" />
-            ) : (
-              <Text style={styles.loginButtonText}>Login</Text>
-            )}
-        </TouchableOpacity>
-        
-        <View style={styles.signUpContainer}>
-            <Text style={styles.noAccountText}>Don't have an account? </Text>
-            <TouchableOpacity onPress={handleSignUp}>
-              <Text style={styles.signUpText}>Sign up</Text>
-            </TouchableOpacity>
-        </View>
-        
-        <View style={styles.dividerContainer}>
-            <View style={styles.divider} />
-            <Text style={styles.dividerText}>or</Text>
-            <View style={styles.divider} />
-        </View>
-        
-        <TouchableOpacity style={styles.proceedButton} onPress={handleNoAccount}>
-            <Text style={styles.proceedButtonText}>Proceed without an account*</Text>
-        </TouchableOpacity>
-        
-        <Text style={styles.disclaimerText}>*User history is not saved</Text>
-        </View>
-    </SafeAreaView>
-    </TouchableWithoutFeedback>
+          <TouchableWithoutFeedback onPress={dismissKeyboard}>
+            <View>
+              <View style={[styles.logoContainer, { transform: [{ scale }] }]}>
+                <AuthMedLogo1 width={200} height={200} />
+              </View>
+              
+              <Text style={[styles.headerText, { fontSize: isSmallScreen ? 20 : 24 }]}>Login to Your Account</Text>
+              
+              <View style={styles.labelContainer}>
+                <Text style={[styles.labelText, { fontSize: isSmallScreen ? 10 : 12 }]}>Email</Text>
+                {emailError && <Text style={[styles.errorText, { fontSize: isSmallScreen ? 10 : 12 }]}>*Email missing*</Text>}
+              </View>
+              <TextInput
+                style={[styles.input, emailError && styles.inputError, { 
+                  height: isSmallScreen ? 45 : 50,
+                  fontSize: isSmallScreen ? 14 : 16
+                }]}
+                placeholder="Enter your email"
+                value={email}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  if (text.trim()) setEmailError(false);
+                }}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+              
+              <View style={styles.labelContainer}>
+                <Text style={[styles.labelText, { fontSize: isSmallScreen ? 10 : 12 }]}>Password</Text>
+                {passwordError && <Text style={[styles.errorText, { fontSize: isSmallScreen ? 10 : 12 }]}>*Password missing*</Text>}
+              </View>
+              <TextInput
+                style={[styles.input, passwordError && styles.inputError, { 
+                  height: isSmallScreen ? 45 : 50,
+                  fontSize: isSmallScreen ? 14 : 16
+                }]}
+                secureTextEntry
+                placeholder="Enter your password"
+                value={password}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  if (text.trim()) setPasswordError(false);
+                }}
+                autoCapitalize="none"
+              />
+              
+              <View style={[styles.forgotPassContainer, { marginBottom: isSmallScreen ? 15 : 20 }]}>
+                <Text style={[styles.forgotPasswordText, { fontSize: isSmallScreen ? 9 : 10 }]}>Forgot your password? </Text>
+                <TouchableOpacity onPress={handleReset}>
+                  <Text style={[styles.resetText, { fontSize: isSmallScreen ? 9 : 10 }]}>Reset</Text>
+                </TouchableOpacity>
+              </View>
+              
+              <TouchableOpacity 
+                style={[styles.loginButton, { 
+                  height: isSmallScreen ? 45 : 50,
+                  marginBottom: isSmallScreen ? 15 : 20
+                }]}
+                onPress={handleLogin}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Text style={[styles.loginButtonText, { fontSize: isSmallScreen ? 14 : 16 }]}>Login</Text>
+                )}
+              </TouchableOpacity>
+              
+              <View style={[styles.signUpContainer, { marginBottom: isSmallScreen ? 15 : 20 }]}>
+                <Text style={[styles.noAccountText, { fontSize: isSmallScreen ? 12 : 14 }]}>Don't have an account? </Text>
+                <TouchableOpacity onPress={handleSignUp}>
+                  <Text style={[styles.signUpText, { fontSize: isSmallScreen ? 12 : 14 }]}>Sign up</Text>
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.dividerContainer}>
+                <View style={styles.divider} />
+                <Text style={[styles.dividerText, { fontSize: isSmallScreen ? 12 : 14 }]}>or</Text>
+                <View style={styles.divider} />
+              </View>
+              
+              <TouchableOpacity style={[styles.proceedButton, { marginTop: isSmallScreen ? 15 : 20 }]} onPress={handleNoAccount}>
+                <Text style={[styles.proceedButtonText, { fontSize: isSmallScreen ? 12 : 14 }]}>Proceed without an account*</Text>
+              </TouchableOpacity>
+              
+              <Text style={[styles.disclaimerText, { fontSize: isSmallScreen ? 10 : 12 }]}>*User history is not saved</Text>
+            </View>
+          </TouchableWithoutFeedback>
+        </ScrollView>
+      </SafeAreaView>
+    </KeyboardAvoidingView>
     );
 };
 
@@ -183,17 +214,16 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: 'white',
     },
-    formContainer: {
+    scrollContent: {
+        flexGrow: 1,
         padding: 35,
-        flex: 1,
-        justifyContent: 'center',
+        paddingBottom: 50,
     },
     logoContainer: {
         alignItems: 'center',
         marginBottom: 40,
     },
     headerText: {
-        fontSize: 24,
         fontFamily: 'Montserrat_700Bold',
         color: '#35383F',
         marginBottom: 30,
@@ -205,25 +235,21 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     labelText: {
-        fontSize: 12,
         fontFamily: 'Montserrat_500Medium',
         color: '#35383F',
         paddingLeft: 8
     },
     errorText: {
-        fontSize: 12,
         fontFamily: 'Montserrat_500Medium',
         color: 'red',
         marginLeft: 8,
     },
     input: {
-        height: 50,
         borderWidth: 1,
         borderColor: '#35383F',
         borderRadius: 14,
         paddingHorizontal: 10,
         marginBottom: 20,
-        fontSize: 16,
         fontFamily: 'Montserrat_400Regular',
     },
     inputError: {
@@ -231,82 +257,72 @@ const styles = StyleSheet.create({
     },
     forgotPassContainer: {
         flexDirection: 'row',
-        marginBottom: 20,
         paddingLeft: 8,
         marginTop: -15,
     },
     forgotPasswordText: {
-        fontSize: 10,
         fontFamily: 'Montserrat_400Regular',
         color: '#333',
     },
     resetText: {
-        fontSize: 10,
         color: '#145185',
         fontFamily: 'Montserrat_700Bold',
     },
     loginButton: {
         backgroundColor: '#145185',
         borderRadius: 14,
-        height: 50,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 25,
+        marginBottom: 20,
     },
     loginButtonText: {
         color: 'white',
-        fontSize: 14,
         fontFamily: 'Montserrat_600SemiBold',
     },
     signUpContainer: {
         flexDirection: 'row',
         justifyContent: 'center',
-        marginBottom: 25,
+        marginBottom: 20,
     },
     noAccountText: {
-        fontSize: 16,
         fontFamily: 'Montserrat_400Regular',
         color: '#333',
     },
     signUpText: {
-        fontSize: 16,
-        fontFamily: 'Montserrat_700Bold',
         color: '#145185',
+        fontFamily: 'Montserrat_700Bold',
     },
     dividerContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 25,
+        marginVertical: 20,
     },
     divider: {
         flex: 1,
         height: 1,
-        backgroundColor: '#ccc',
+        backgroundColor: '#E0E0E0',
     },
     dividerText: {
-        paddingHorizontal: 10,
-        fontFamily: 'Montserrat_400Regular',
+        marginHorizontal: 10,
         color: '#666',
-        fontSize: 16,
+        fontFamily: 'Montserrat_500Medium',
     },
     proceedButton: {
-        backgroundColor: '#145185',
-        borderRadius: 6,
-        height: 50,
-        justifyContent: 'center',
+        backgroundColor: '#F5F5F5',
+        borderRadius: 14,
+        paddingVertical: 12,
         alignItems: 'center',
-        marginBottom: 10,
+        marginTop: 20,
     },
     proceedButtonText: {
-        color: 'white',
-        fontSize: 14,
+        color: '#35383F',
         fontFamily: 'Montserrat_600SemiBold',
     },
     disclaimerText: {
-        fontSize: 10,
-        fontFamily: 'Montserrat_600SemiBold',
-        color: '#145185',
         textAlign: 'center',
+        color: '#666',
+        fontFamily: 'Montserrat_400Regular',
+        marginTop: 10,
     },
 });
 

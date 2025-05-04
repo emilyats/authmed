@@ -25,6 +25,9 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "androidNavigationBar": {
+      "visible": "sticky-immersive"
+    },
     "plugins": [
       "expo-router",
       "expo-font",
