@@ -79,7 +79,7 @@ export default function TabsLayout() {
         distance={15}
         startColor="#00000020"
         endColor="#00000000"
-        offset={[0, 25]}
+        offset={[0, 20]}
         style={[{
           bottom: 0
         }]}
@@ -98,8 +98,8 @@ export default function TabsLayout() {
         disabled={activeScreen === 'home'}
       >
         <Shadow
-          distance={10}
-          startColor={activeScreen === 'home' ? '#FFFFFF15' : '#3E719E40'}
+          distance={8}
+          startColor={activeScreen === 'home' ? '#FFFFFF15' : '#3E719E35'}
           endColor={activeScreen === 'home' ? '#FFFFFF00' : '#3E719E00'}
           offset={[0, 0]}
         >
