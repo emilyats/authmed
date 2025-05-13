@@ -95,7 +95,7 @@ const LoginScreen = () => {
     };
 
     const handleNoAccount = () => {
-        //router.push('/nohistory');
+        router.replace('(tabs)/home');
     };
 
     const dismissKeyboard = () => {
@@ -308,14 +308,14 @@ const styles = StyleSheet.create({
         fontFamily: 'Montserrat_500Medium',
     },
     proceedButton: {
-        backgroundColor: '#F5F5F5',
+        backgroundColor: '#145185',
         borderRadius: 14,
         paddingVertical: 12,
         alignItems: 'center',
         marginTop: 20,
     },
     proceedButtonText: {
-        color: '#35383F',
+        color: '#FFFFFF',
         fontFamily: 'Montserrat_600SemiBold',
     },
     disclaimerText: {
