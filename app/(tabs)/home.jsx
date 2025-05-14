@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { CameraView, Camera } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
+import * as ImagePicker from 'expo-image-picker';
 import Slider from '@react-native-community/slider';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -104,6 +105,32 @@ export default function HomeScreen() {
     setPhoto(null);
   };
 
+  const pickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 1,
+        aspect: undefined,
+        exif: true,
+        base64: true,
+        presentationStyle: 'fullScreen'
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const selectedAsset = result.assets[0];
+        setPhoto({
+          uri: selectedAsset.uri,
+          width: selectedAsset.width,
+          height: selectedAsset.height
+        });
+        setImg(selectedAsset.uri);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+    }
+  };
+
   if (hasPermission === null) {
     return <View style={styles.loadingContainer}><Text style={styles.loadingText}>Requesting camera permission...</Text></View>;
   }
@@ -119,7 +146,11 @@ export default function HomeScreen() {
   if (photo) {
     return (
       <View style={styles.container}>
-        <Image style={styles.preview} source={{ uri: photo.uri }} />
+        <Image 
+          style={styles.preview} 
+          source={{ uri: photo.uri }} 
+          resizeMode="contain"
+        />
         <TouchableOpacity onPress={handleBackToCamera} style={styles.backButton}>
           <Ionicons name="trash-outline" size={24} color="white" />
         </TouchableOpacity>
@@ -141,7 +172,7 @@ export default function HomeScreen() {
       <SafeAreaView style={styles.uiContainer}>
         {/* Top Camera Controls */}
         <View style={styles.topBar}>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={pickImage}>
             <Ionicons name="images-outline" size={24} color="white" />
           </TouchableOpacity>
           <TouchableOpacity onPress={toggleFlash}>
@@ -280,7 +311,8 @@ const styles = StyleSheet.create({
   },
   preview: {
     flex: 1,
-    resizeMode: 'cover',
+    width: '100%',
+    backgroundColor: '#000',
   },
   btnContainer: {
     position: 'absolute',
