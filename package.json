@@ -14,7 +14,7 @@
     "@react-native-community/slider": "^4.5.6",
     "@tensorflow/tfjs": "^4.22.0",
     "@tensorflow/tfjs-backend-webgl": "^4.22.0",
-    "@tensorflow/tfjs-react-native": "^1.0.0",
+    "axios": "^1.9.0",
     "expo": "^53.0.4",
     "expo-camera": "~16.1.6",
     "expo-constants": "~17.1.4",

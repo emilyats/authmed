@@ -7,7 +7,8 @@ import {
   SafeAreaView,
   Image,
   StatusBar,
-  Dimensions
+  Dimensions,
+  ActivityIndicator
 } from 'react-native';
 import { CameraView, Camera } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
@@ -15,6 +16,10 @@ import * as ImagePicker from 'expo-image-picker';
 import Slider from '@react-native-community/slider';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import axios from 'axios';
+
+// Your computer's actual IP address
+const API_URL = 'http://192.168.0.19:8003';
 
 export default function HomeScreen() {
   const [hasPermission, setHasPermission] = useState(null);
@@ -23,6 +28,9 @@ export default function HomeScreen() {
   const [flashMode, setFlashMode] = useState('off');
   const [zoom, setZoom] = useState(0);
   const [photo, setPhoto] = useState(null);
+  const [img, setImg] = useState(null);
+  const [detectionResult, setDetectionResult] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const cameraRef = useRef(null);
   const router = useRouter();
 
@@ -76,6 +84,9 @@ export default function HomeScreen() {
         if (cameraRef.current) {
           cameraRef.current.pausePreview();
         }
+        // Clear photo state when navigating away
+        setPhoto(null);
+        setImg(null);
       };
     }, [hasPermission])
   );
@@ -88,6 +99,56 @@ export default function HomeScreen() {
     setFlashMode((current) => (current === 'on' ? 'off' : 'on'));
   };
 
+  const detectMedicine = async (imageUri) => {
+    try {
+      setIsProcessing(true);
+      
+      // Create form data
+      const formData = new FormData();
+      formData.append('file', {
+        uri: imageUri,
+        type: 'image/jpeg',
+        name: 'photo.jpg',
+      });
+
+      // Send to backend
+      const response = await axios.post(`${API_URL}/predict_roboflow`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      // Get the cropped image URL from the response
+      const croppedImageUrl = `${API_URL}${response.data.cropped_image_url}`;
+
+      router.push({
+        pathname: '../ResultScreen',
+        params: {
+          detectionResult: JSON.stringify({
+            ...response.data,
+            cropped_image_url: croppedImageUrl // Pass the full URL
+          }),
+          photoUri: imageUri,
+        },
+      });
+    } catch (error) {
+      console.error('Error detecting medicine:', error);
+      router.push({
+        pathname: '/(tabs)/ResultScreen',
+        params: {
+          detectionResult: JSON.stringify({
+            class: 'error',
+            confidence: 0,
+            message: 'Error detecting medicine. Please try again.'
+          }),
+          photoUri: imageUri,
+        },
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleScan = async () => {
     if (cameraRef.current) {
       const options = {
@@ -98,11 +159,13 @@ export default function HomeScreen() {
       const newPhoto = await cameraRef.current.takePictureAsync(options);
       setPhoto(newPhoto);
       console.log('Photo URI:', newPhoto.uri);
+      await detectMedicine(newPhoto.uri);
     }
   };
 
   const handleBackToCamera = () => {
     setPhoto(null);
+    setDetectionResult(null);
   };
 
   const pickImage = async () => {
@@ -125,9 +188,23 @@ export default function HomeScreen() {
           height: selectedAsset.height
         });
         setImg(selectedAsset.uri);
+        await detectMedicine(selectedAsset.uri);
       }
     } catch (error) {
       console.error('Error picking image:', error);
+    }
+  };
+
+  const getAuthenticityColor = (status) => {
+    switch (status) {
+      case 'authentic':
+        return '#4CAF50'; // Green
+      case 'suspected counterfeit':
+        return '#FFC107'; // Yellow
+      case 'counterfeit':
+        return '#F44336'; // Red
+      default:
+        return '#9E9E9E'; // Grey
     }
   };
 
@@ -146,14 +223,20 @@ export default function HomeScreen() {
   if (photo) {
     return (
       <View style={styles.container}>
+        <TouchableOpacity onPress={handleBackToCamera} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="white" />
+        </TouchableOpacity>
         <Image 
           style={styles.preview} 
           source={{ uri: photo.uri }} 
           resizeMode="contain"
         />
-        <TouchableOpacity onPress={handleBackToCamera} style={styles.backButton}>
-          <Ionicons name="trash-outline" size={24} color="white" />
-        </TouchableOpacity>
+        {isProcessing && (
+          <View style={styles.processingContainer}>
+            <ActivityIndicator size="large" color="#fff" />
+            <Text style={styles.processingText}>Analyzing medicine...</Text>
+          </View>
+        )}
       </View>
     );
   }
@@ -329,14 +412,103 @@ const styles = StyleSheet.create({
   },
   backButton: {
     position: 'absolute',
-    bottom: 130,
-    alignSelf: 'center',
-    backgroundColor: '#145185',
-    borderRadius: 25,
-    paddingVertical: 12,
-    paddingHorizontal: 40,
+    top: StatusBar.currentHeight || 80,
+    left: 20,
+    zIndex: 10,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 20,
+    padding: 8,
+  },
+  processingContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    width: 100,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+  },
+  processingText: {
+    color: 'white',
+    marginTop: 10,
+    fontSize: 16,
+    fontFamily: 'Montserrat_500Medium',
+  },
+  resultContainer: {
+    position: 'absolute',
+    bottom: 100,
+    left: 20,
+    right: 20,
+    backgroundColor: '#3E719F',
+    padding: 15,
+    borderRadius: 10,
+  },
+  resultContainerCentered: {
+    position: 'absolute',
+    top: '42%',
+    left: 20,
+    right: 20,
+    transform: [{ translateY: -150 }],
+    backgroundColor: '#3E719F',
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  resultText: {
+    color: 'white',
+    fontSize: 16,
+    fontFamily: 'Montserrat_500Medium',
+    textAlign: 'center',
+  },
+  authenticityContainer: {
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  authenticityText: {
+    color: 'white',
+    fontSize: 16,
+    fontFamily: 'Montserrat_600SemiBold',
+    textAlign: 'center',
+  },
+  disclaimerText: {
+    color: '#fff',
+    fontSize: 12,
+    fontFamily: 'Montserrat_400Regular',
+    marginTop: 10,
+    textAlign: 'center',
+    opacity: 0.8,
+    paddingTop: 10
+  },
+  recommendationsContainer: {
+    marginTop: 8,
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(62,113,158,0.08)',
+  },
+  recommendationsTitle: {
+    color: '#fff',
+    fontFamily: 'Montserrat_600SemiBold',
+    fontSize: 13,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  recommendationItem: {
+    color: '#fff',
+    fontFamily: 'Montserrat_400Regular',
+    fontSize: 12,
+    marginLeft: 4,
+    marginBottom: 2,
+  },
+  croppedImage: {
+    width: 180,
+    height: 180,
+    marginVertical: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#fff',
+    backgroundColor: '#222',
   },
 });
