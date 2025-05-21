@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { AntDesign, Ionicons } from '@expo/vector-icons';
 import { FIREBASE_AUTH } from '../../firebaseConfig';
 import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SignUpScreen() {
   const [loading, setLoading] = useState(false);
@@ -77,6 +78,9 @@ export default function SignUpScreen() {
   
       // Send verification email
       await sendEmailVerification(user);
+      
+      // Set first-time user flag
+      await AsyncStorage.setItem('isFirstTimeUser', 'true');
   
       // Sign out user immediately
       await auth.signOut();

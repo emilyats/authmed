@@ -1,59 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView, Modal, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView} from 'react-native';
 import { useRouter } from 'expo-router';
 import { AntDesign, Ionicons } from '@expo/vector-icons';
 import { FIREBASE_AUTH } from '../../firebaseConfig';
 
-const DEVELOPER_INFO = {
-  name: "AuthMed Development Team",
-  email: "202210736@fit.edu.ph",
-  phone: "+63 939 939 2548",
-  location: "FEU Institute of Technology",
-};
-
-const ABOUT_INFO = {
-  title: "About Us",
-  team: "GGS(S)",
-  description: "GGS(S) is a team of dedicated developers committed to delivering digital health solutions that are intuitive, accessible, and impactful.",
-  history: "Founded in 2025, GGS(S) emerged in response to a growing need for reliable and accessible medicine authentication, particularly in addressing the increasing prevalence of counterfeit over-the-counter (OTC) medications. The rapid expansion of internet access has, unfortunately, enabled the spread of counterfeit pharmaceutical products, placing public health at risk. Traditionally, verifying the authenticity of medicine required laboratory testing, an approach that is both time-consuming and often inaccessible to the average consumer.",
-  solution: "To address this issue, we developed AuthMed, a mobile solution designed to enable users to scan and authenticate medicines instantly, eliminating the need for specialized equipment or laboratory procedures.",
-  mission: "To empower individuals with reliable, accessible digital tools that protect health and enhance well-being.",
-  vision: "A future where everyone, regardless of location or background, can trust the medicines they use.",
-  values: [
-    "Progress – We embrace innovation, leveraging the latest in artificial intelligence and mobile technology to drive our solutions forward.",
-    "Honesty – We stand against deception in healthcare. Our work is rooted in the belief that no one should unknowingly consume counterfeit medication.",
-    "User-Centric Design – We prioritize simplicity, ensuring that our tools are easy to use and accessible to all."
-  ],
-  closing: "With just a simple scan, lives can be saved and health safeguarded."
-};
-
-const DEVELOPER_PROFILES = [
-  {
-    name: "Jienne Khalil A. Lechuga",
-    role: "Database Specialist",
-    imageUrl: require("../../assets/images/developers/jienne.jpg")
-  },
-  {
-    name: "Rizeth Marianne C. Marcelo",
-    role: "Backend Developer",
-    imageUrl: require("../../assets/images/developers/zeth.jpg")
-  },
-  {
-    name: "Emily Anne A. Tan Sanchez",
-    role: "Lead Programmer & Frontend Developer",
-    imageUrl: require("../../assets/images/developers/emily.jpg")
-  },
-  {
-    name: "Michelle Gabrielle P. Ulanday",
-    role: "Full Stack Developer & Documentation Lead",
-    imageUrl: require("../../assets/images/developers/michelle.jpg")
-  }
-];
-
 export default function MenuScreen() {
   const router = useRouter();
-  const [contactModalVisible, setContactModalVisible] = useState(false);
-  const [aboutModalVisible, setAboutModalVisible] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -69,7 +20,6 @@ export default function MenuScreen() {
   };
 
   const handleNotExisting = () => {
-    // Placeholder: navigate to change password screen if implemented
     alert('Coming soon!');
   };
 
@@ -81,29 +31,26 @@ export default function MenuScreen() {
           <Text style={styles.backText}>Back</Text>
         </TouchableOpacity>
       </View>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <Text style={styles.sectionTitle}>Settings</Text>
-        <TouchableOpacity style={styles.menuButton} onPress={handleNotExisting}>
-          <Text style={styles.menuButtonText}>Basta</Text>
-          <Text style={styles.menuButtonSubtitle}>Di ko pa alam beh</Text>
-        </TouchableOpacity>
 
-        <Text style={styles.sectionTitle}>Help & Info</Text>
-        <TouchableOpacity style={styles.menuButton} onPress={handleNotExisting}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <Text style={styles.sectionTitle}>Help & Info</Text>
+        <TouchableOpacity style={styles.menuButton} onPress={() => router.push('../tutorial')}>
           <View style={styles.menuButtonContent}>
             <Text style={styles.menuButtonText}>Tutorial</Text>
             <Text style={styles.menuButtonSubtitle}>How to use AuthMed</Text>
           </View>
           <Ionicons name="book" size={24} color="white" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.menuButton} onPress={() => setAboutModalVisible(true)}>
+
+        <TouchableOpacity style={styles.menuButton} onPress={() => router.push('../about')}>
           <View style={styles.menuButtonContent}>
             <Text style={styles.menuButtonText}>About AuthMed</Text>
             <Text style={styles.menuButtonSubtitle}>Information on Developers and Project</Text>
           </View>
           <Ionicons name="information-circle" size={24} color="white" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.menuButton} onPress={() => setContactModalVisible(true)}>
+
+        <TouchableOpacity style={styles.menuButton} onPress={() => router.push('../contact')}>
           <View style={styles.menuButtonContent}>
             <Text style={styles.menuButtonText}>Contact Us</Text>
             <Text style={styles.menuButtonSubtitle}>Developers' Contact Information</Text>
@@ -127,195 +74,6 @@ export default function MenuScreen() {
           <Ionicons name="log-out" size={24} color="white" />
         </TouchableOpacity>
       </ScrollView>
-
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={contactModalVisible}
-        onRequestClose={() => setContactModalVisible(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={[styles.modalContent, styles.aboutModalContent]}>
-            <View style={[styles.modalHeader, styles.aboutModalHeader]}>
-              <TouchableOpacity 
-                style={[styles.closeButton, styles.aboutCloseButton]} 
-                onPress={() => setContactModalVisible(false)}
-              >
-                <AntDesign name="close" size={24} color="#ffffff" />
-              </TouchableOpacity>
-              <View style={styles.modalHeaderContent}>
-                <View style={[styles.iconContainer, styles.aboutIconContainer]}>
-                  <Ionicons name="people" size={40} color="#ffffff" />
-                </View>
-                <Text style={[styles.modalTitle, styles.aboutModalTitle]}>Contact Us</Text>
-                <Text style={[styles.modalSubtitle, styles.aboutModalSubtitle]}>Get in touch with our team</Text>
-              </View>
-            </View>
-
-            <ScrollView 
-              style={styles.modalScrollContent}
-              showsVerticalScrollIndicator={false}
-            >
-              <View style={styles.developerInfo}>
-                <View style={styles.infoSection}>
-                  <View style={styles.infoHeaderRow}>
-                    <Ionicons name="business" size={24} color="#3E719E" />
-                    <Text style={styles.infoTitle}>Team Name</Text>
-                  </View>
-                  <Text style={styles.infoText}>{DEVELOPER_INFO.name}</Text>
-                </View>
-
-                <View style={styles.infoSection}>
-                  <View style={styles.infoHeaderRow}>
-                    <Ionicons name="location" size={24} color="#3E719E" />
-                    <Text style={styles.infoTitle}>Location</Text>
-                  </View>
-                  <Text style={styles.infoText}>{DEVELOPER_INFO.location}</Text>
-                </View>
-
-                <View style={styles.infoSection}>
-                  <View style={styles.infoHeaderRow}>
-                    <Ionicons name="mail" size={24} color="#3E719E" />
-                    <Text style={styles.infoTitle}>Email</Text>
-                  </View>
-                  <Text style={styles.infoText}>{DEVELOPER_INFO.email}</Text>
-                </View>
-
-                <View style={[styles.infoSection, { marginBottom: 0 }]}>
-                  <View style={styles.infoHeaderRow}>
-                    <Ionicons name="call" size={24} color="#3E719E" />
-                    <Text style={styles.infoTitle}>Phone</Text>
-                  </View>
-                  <Text style={styles.infoText}>{DEVELOPER_INFO.phone}</Text>
-                </View>
-              </View>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={aboutModalVisible}
-        onRequestClose={() => setAboutModalVisible(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={[styles.modalContent, styles.aboutModalContent]}>
-            <View style={[styles.modalHeader, styles.aboutModalHeader]}>
-              <TouchableOpacity 
-                style={[styles.closeButton, styles.aboutCloseButton]} 
-                onPress={() => setAboutModalVisible(false)}
-              >
-                <AntDesign name="close" size={24} color="#ffffff" />
-              </TouchableOpacity>
-              <View style={styles.modalHeaderContent}>
-                <View style={[styles.iconContainer, styles.aboutIconContainer]}>
-                  <Ionicons name="information-circle" size={40} color="#ffffff" />
-                </View>
-                <Text style={[styles.modalTitle, styles.aboutModalTitle]}>{ABOUT_INFO.title}</Text>
-                <Text style={[styles.modalSubtitle, styles.aboutModalSubtitle]}>{ABOUT_INFO.team}</Text>
-              </View>
-            </View>
-
-            <ScrollView 
-              style={styles.modalScrollContent}
-              showsVerticalScrollIndicator={false}
-            >
-              <View style={styles.aboutInfo}>
-                <View style={styles.introSection}>
-                  <Text style={[styles.aboutText, styles.descriptionText]}>{ABOUT_INFO.description}</Text>
-                </View>
-                
-                <View style={[styles.sectionContainer, styles.historySection]}>
-                  <View style={styles.sectionIconContainer}>
-                    <Ionicons name="time" size={24} color="#3E719E" />
-                  </View>
-                  <Text style={styles.aboutText}>{ABOUT_INFO.history}</Text>
-                </View>
-                
-                <View style={[styles.sectionContainer, styles.solutionSection]}>
-                  <View style={styles.sectionIconContainer}>
-                    <Ionicons name="bulb" size={24} color="#3E719E" />
-                  </View>
-                  <Text style={styles.aboutText}>{ABOUT_INFO.solution}</Text>
-                </View>
-
-                <View style={[styles.sectionContainer, styles.missionContainer]}>
-                  <Text style={styles.sectionTitle}>Our Mission, Vision, and Core Values</Text>
-                  
-                  <View style={[styles.subsection, styles.missionSubsection]}>
-                    <View style={styles.subsectionHeader}>
-                      <View style={styles.iconWrapper}>
-                        <Ionicons name="flag" size={20} color="#ffffff" />
-                      </View>
-                      <Text style={styles.subsectionTitle}>Mission</Text>
-                    </View>
-                    <Text style={styles.aboutText}>{ABOUT_INFO.mission}</Text>
-                  </View>
-
-                  <View style={[styles.subsection, styles.visionSubsection]}>
-                    <View style={styles.subsectionHeader}>
-                      <View style={styles.iconWrapper}>
-                        <Ionicons name="eye" size={20} color="#ffffff" />
-                      </View>
-                      <Text style={styles.subsectionTitle}>Vision</Text>
-                    </View>
-                    <Text style={styles.aboutText}>{ABOUT_INFO.vision}</Text>
-                  </View>
-
-                  <View style={[styles.subsection, styles.valuesSubsection]}>
-                    <View style={styles.subsectionHeader}>
-                      <View style={styles.iconWrapper}>
-                        <Ionicons name="heart" size={20} color="#ffffff" />
-                      </View>
-                      <Text style={styles.subsectionTitle}>Core Values</Text>
-                    </View>
-                    {ABOUT_INFO.values.map((value, index) => (
-                      <View key={index} style={styles.valueContainer}>
-                        <View style={styles.valueBullet} />
-                        <Text style={[styles.aboutText, styles.valueText]}>{value}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-
-                <View style={[styles.sectionContainer, styles.developersContainer]}>
-                  <Text style={styles.sectionTitle}>Meet Our Developers</Text>
-                  <ScrollView 
-                    horizontal 
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.developersScrollContent}
-                  >
-                    {DEVELOPER_PROFILES.map((developer, index) => (
-                      <View key={index} style={styles.developerCard}>
-                        {developer.imageUrl ? (
-                          <Image
-                            source={developer.imageUrl}
-                            style={styles.developerImage}
-                          />
-                        ) : (
-                          <View style={styles.developerImage}>
-                            <Text style={styles.developerInitials}>
-                              {developer.name.split(' ').map(n => n[0]).join('')}
-                            </Text>
-                          </View>
-                        )}
-                        <Text style={styles.developerName}>{developer.name}</Text>
-                        <Text style={styles.developerRole}>{developer.role}</Text>
-                      </View>
-                    ))}
-                  </ScrollView>
-                </View>
-
-                <View style={styles.closingContainer}>
-                  <Text style={[styles.aboutText, styles.closingText]}>{ABOUT_INFO.closing}</Text>
-                </View>
-              </View>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }

@@ -4,7 +4,7 @@ import { useRouter, usePathname, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import HistoryIcon from '../../assets/svg/historyicon.svg';
 import MenuIcon from '../../assets/svg/menuicon.svg';
-import ScanIcon from '../../assets/svg/scanicon.svg';
+import HomeIcon from '../../assets/svg/homeicon.svg';
 import BottomBar from '../../assets/svg/bottombar.svg';
 import { Shadow } from 'react-native-shadow-2';
 
@@ -104,7 +104,7 @@ export default function TabsLayout() {
           offset={[0, 0]}
         >
           <View style={styles.homeButtonContainer}>
-            <ScanIcon width={isSmallScreen ? 75 : 90} />
+            <HomeIcon width={isSmallScreen ? 75 : 90} />
           </View>
         </Shadow>
       </TouchableOpacity>

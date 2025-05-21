@@ -1,6 +1,17 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, Dimensions, Image } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useEffect, useState, useCallback } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TouchableOpacity, 
+  ScrollView, 
+  SafeAreaView, 
+  ActivityIndicator, 
+  Dimensions, 
+  Image,
+  RefreshControl
+} from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { AntDesign } from '@expo/vector-icons';
 import { FIREBASE_AUTH, FIREBASE_DB } from '../../firebaseConfig';
 import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
@@ -9,38 +20,47 @@ import LongArrow from '../../assets/svg/longarrow.svg';
 export default function HistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [history, setHistory] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
   const user = FIREBASE_AUTH.currentUser;
   const { width, height } = Dimensions.get('window');
   const isSmallScreen = width <= 375;
 
-  useEffect(() => {
-    console.log('Current user:', user);
-    const fetchHistory = async () => {
-      if (!user) {
-        setHistory([]);
-        setLoading(false);
-        return;
-      }
-      try {
-        const q = query(
-          collection(FIREBASE_DB, 'scanHistory'),
-          where('userId', '==', user.uid),
-          orderBy('scannedAt', 'desc')
-        );
-        const querySnapshot = await getDocs(q);
-        const items = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        console.log('Fetched history:', items);
-        setHistory(items);
-      } catch (error) {
-        setHistory([]);
-        console.error('Error fetching history:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchHistory = async () => {
+    if (!user) {
+      setHistory([]);
+      setLoading(false);
+      return;
+    }
+    try {
+      const q = query(
+        collection(FIREBASE_DB, 'scanHistory'),
+        where('userId', '==', user.uid),
+        orderBy('scannedAt', 'desc')
+      );
+      const querySnapshot = await getDocs(q);
+      const items = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      console.log('Fetched history:', items);
+      setHistory(items);
+    } catch (error) {
+      setHistory([]);
+      console.error('Error fetching history:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
     fetchHistory();
-  }, [user]);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchHistory();
+    }, [])
+  );
 
   const handleStartScanning = () => {
     router.replace('/home');
@@ -70,12 +90,23 @@ export default function HistoryScreen() {
           </View>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent} 
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#145185"
+              colors={["#145185"]}
+            />
+          }
+        >
           {history.map((item, idx) => (
             <TouchableOpacity
               key={item.id || idx}
               style={styles.card}
-              onPress={() => router.push({ pathname: '../ScanDetailScreen', params: { scanId: item.id } })}
+              onPress={() => router.push({ pathname: '../scandetail', params: { scanId: item.id } })}
             >
               <View style={styles.cardTextContainer}>
                 <Text style={styles.cardTitle}>{item.medicineName || 'Medicine Name'}</Text>

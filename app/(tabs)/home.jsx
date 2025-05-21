@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -13,30 +13,45 @@ import {
   Linking,
   Animated
 } from 'react-native';
-import * as MediaLibrary from 'expo-media-library';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { Ionicons, AntDesign } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import { FIREBASE_AUTH, FIREBASE_DB } from '../../firebaseConfig';
 import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
-import { LinearGradient } from 'expo-linear-gradient';
+import AuthMedLogo2 from '../../assets/svg/authmedlogo2.svg';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Your computer's actual IP address
 const API_URL = 'http://172.20.10.3:8003';
 
+
 export default function HomeScreen() {
   const [hasPermission, setHasPermission] = useState(null);
-  const [photo, setPhoto] = useState(null);
-  const [img, setImg] = useState(null);
-  const [detectionResult, setDetectionResult] = useState(null);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [recentScans, setRecentScans] = useState([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const user = FIREBASE_AUTH.currentUser;
   const { width, height } = Dimensions.get('window');
-  const isSmallScreen = width <= 375;
+
+    useEffect(() => {
+    checkFirstTimeUser();
+  }, []);
+
+  const checkFirstTimeUser = async () => {
+    try {
+      const isFirstTimeUser = await AsyncStorage.getItem('isFirstTimeUser');
+      
+      if (isFirstTimeUser === 'true') {
+        // Clear the flag
+        await AsyncStorage.setItem('isFirstTimeUser', 'false');
+        // Navigate to tutorial
+        router.push('../tutorial');
+      }
+    } catch (error) {
+      console.error('Error checking first time user:', error);
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -71,70 +86,9 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchRecentScans();
-      return () => {
-        setPhoto(null);
-        setImg(null);
-      };
+      return () => {};
     }, [user])
   );
-
-  const detectMedicine = async (imageUri) => {
-    try {
-      setIsProcessing(true);
-      
-      // Create form data
-      const formData = new FormData();
-      formData.append('file', {
-        uri: imageUri,
-        type: 'image/jpeg',
-        name: 'photo.jpg',
-      });
-
-      // Send to backend
-      const response = await axios.post(`${API_URL}/predict_roboflow`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      // Check if medicine was detected with sufficient confidence
-      if (response.data.class === 'unknown' || response.data.confidence < 0.5) {
-        setPhoto(null);
-        setImg(null);
-        alert('No medicine detected or image is too blurry. Please try again.');
-        return;
-      }
-
-      // Get the cropped image URL from the response
-      const croppedImageUrl = `${API_URL}${response.data.cropped_image_url}`;
-
-      router.push({
-        pathname: '../ResultScreen',
-        params: {
-          detectionResult: JSON.stringify({
-            ...response.data,
-            cropped_image_url: croppedImageUrl
-          }),
-          photoUri: imageUri,
-        },
-      });
-    } catch (error) {
-      console.error('Error detecting medicine:', error);
-      router.push({
-        pathname: '../ResultScreen',
-        params: {
-          detectionResult: JSON.stringify({
-            class: 'error',
-            confidence: 0,
-            message: 'Error detecting medicine. Please try again.'
-          }),
-          photoUri: imageUri,
-        },
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
 
   const handleScan = async () => {
     try {
@@ -146,13 +100,10 @@ export default function HomeScreen() {
       });
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const photo = result.assets[0];
-        setPhoto({
-          uri: photo.uri,
-          width: photo.width,
-          height: photo.height
+        router.push({
+          pathname: '../analyzing',
+          params: { photoUri: photo.uri }
         });
-        setImg(photo.uri);
-        await detectMedicine(photo.uri);
       }
     } catch (error) {
       console.error('Error taking photo:', error);
@@ -173,13 +124,10 @@ export default function HomeScreen() {
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const selectedAsset = result.assets[0];
-        setPhoto({
-          uri: selectedAsset.uri,
-          width: selectedAsset.width,
-          height: selectedAsset.height
+        router.push({
+          pathname: '../analyzing',
+          params: { photoUri: selectedAsset.uri }
         });
-        setImg(selectedAsset.uri);
-        await detectMedicine(selectedAsset.uri);
       }
     } catch (error) {
       console.error('Error picking image:', error);
@@ -198,27 +146,6 @@ export default function HomeScreen() {
     );
   }
 
-  if (photo) {
-    return (
-      <View style={styles.container}>
-        <TouchableOpacity onPress={() => setPhoto(null)} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="white" />
-        </TouchableOpacity>
-        <Image 
-          style={styles.preview} 
-          source={{ uri: photo.uri }} 
-          resizeMode="contain"
-        />
-        {isProcessing && (
-          <View style={styles.processingContainer}>
-            <ActivityIndicator size="large" color="#fff" />
-            <Text style={styles.processingText}>Analyzing medicine...</Text>
-          </View>
-        )}
-      </View>
-    );
-  }
-
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView 
@@ -227,8 +154,31 @@ export default function HomeScreen() {
         contentContainerStyle={styles.scrollViewContent}
       >
         <View style={styles.header}>
-          <Text style={[styles.title, { fontSize: isSmallScreen ? 20 : 22 }]}>Welcome to AuthMed</Text>
+          <AuthMedLogo2 width={100} height={100} />
+          <Text style={[styles.title]}>Welcome to AuthMed</Text>
           <Text style={styles.subtitle}>Scan your medicines to verify their authenticity</Text>
+        </View>
+
+        <View style={styles.scanSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Scan Medicine</Text>
+          </View>
+          <View style={styles.scanOptionsWrapper}>
+            <View style={styles.scanOptionsContainer}>
+              <TouchableOpacity style={styles.scanOption} onPress={handleScan}>
+                <View style={styles.scanIconContainer}>
+                  <Ionicons name="camera" size={32} color="white" />
+                </View>
+                <Text style={styles.scanOptionText}>Take Photo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.scanOption} onPress={pickImage}>
+                <View style={styles.scanIconContainer}>
+                  <Ionicons name="images" size={32} color="white" />
+                </View>
+                <Text style={styles.scanOptionText}>Upload Image</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
 
         <View style={styles.recentScansContainer}>
@@ -245,14 +195,14 @@ export default function HomeScreen() {
           {loading ? (
             <ActivityIndicator size="large" color="#145185" />
           ) : recentScans.length === 0 ? (
-            <Text style={styles.emptyText}>No recent scans</Text>
+            <Text style={styles.emptyText}>You do not have any scanned medicines yet!</Text>
           ) : (
             <View style={styles.recentScansGrid}>
               {recentScans.map((item, idx) => (
                 <TouchableOpacity
                   key={item.id || idx}
                   style={styles.squareCard}
-                  onPress={() => router.push({ pathname: '../ScanDetailScreen', params: { scanId: item.id } })}
+                  onPress={() => router.push({ pathname: '../scandetail', params: { scanId: item.id } })}
                 >
                   {item.imageUrl ? (
                     <Image
@@ -270,27 +220,6 @@ export default function HomeScreen() {
               ))}
             </View>
           )}
-        </View>
-
-        <View style={styles.scanSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Scan Medicine</Text>
-          </View>
-          <Text style={styles.scanSubtitle}>Take a photo or upload an image</Text>
-          <View style={styles.scanOptionsContainer}>
-            <TouchableOpacity style={styles.scanOption} onPress={handleScan}>
-              <View style={styles.scanIconContainer}>
-                <Ionicons name="camera" size={32} color="white" />
-              </View>
-              <Text style={styles.scanOptionText}>Take Photo</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.scanOption} onPress={pickImage}>
-              <View style={styles.scanIconContainer}>
-                <Ionicons name="images" size={32} color="white" />
-              </View>
-              <Text style={styles.scanOptionText}>Upload Image</Text>
-            </TouchableOpacity>
-          </View>
         </View>
 
         <View style={styles.quickLinksContainer}>
@@ -341,7 +270,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollViewContent: {
-    paddingTop: 30,
+    paddingTop: 20,
+    paddingBottom: 40,
   },
   header: {
     backgroundColor: 'white',
@@ -355,28 +285,39 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: 'Montserrat_700Bold',
     color: '#35383F',
-    marginBottom: 8,
+    marginBottom: 6,
+    fontSize: 28,
     textAlign: 'center',
   },
   subtitle: {
     fontFamily: 'Montserrat_500Medium',
     color: '#666',
-    fontSize: 14,
-    marginBottom: 20,
+    fontSize: 12,
+    marginBottom: 5,
     textAlign: 'center',
+  },
+  scanOptionsWrapper: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 18,
+    padding: 16,
+    backgroundColor: '#F8FAFC',
+    width: '100%',
+    marginTop: 5,
+    marginBottom: 10,
   },
   scanOptionsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     width: '100%',
-    marginTop: 15,
   },
   scanOption: {
     backgroundColor: '#3E719E',
     borderRadius: 16,
-    padding: 25,
     alignItems: 'center',
-    width: '45%',
+    width: 125,
+    height: 120,
+    justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
@@ -395,8 +336,8 @@ const styles = StyleSheet.create({
   scanOptionText: {
     fontFamily: 'Montserrat_600SemiBold',
     color: 'white',
-    marginTop: 8,
-    fontSize: 16,
+    marginTop: 5,
+    fontSize: 12,
   },
   recentScansContainer: {
     paddingHorizontal: 20,
@@ -416,7 +357,7 @@ const styles = StyleSheet.create({
   },
   recentScansGrid: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     gap: 12,
     width: '100%',
   },
@@ -477,36 +418,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 20,
   },
-  preview: {
-    flex: 1,
-    width: '100%',
-    backgroundColor: '#000',
-  },
-  backButton: {
-    position: 'absolute',
-    top: StatusBar.currentHeight || 40,
-    left: 20,
-    zIndex: 10,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 20,
-    padding: 8,
-  },
-  processingContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.7)',
-  },
-  processingText: {
-    color: 'white',
-    marginTop: 10,
-    fontSize: 16,
-    fontFamily: 'Montserrat_500Medium',
-  },
   viewAllButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -562,8 +473,5 @@ const styles = StyleSheet.create({
     fontFamily: 'Montserrat_500Medium',
     color: '#666',
     fontSize: 14,
-    textAlign: 'left',
-    marginBottom: 20,
-    paddingHorizontal: 20,
   },
 });
