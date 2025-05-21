@@ -4,7 +4,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 
-const API_URL = 'http://172.20.10.3:8003';
+const API_URL = 'http://192.168.1.13:8003';
 
 export default function AnalyzingScreen() {
   const router = useRouter();

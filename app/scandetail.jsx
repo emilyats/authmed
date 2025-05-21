@@ -126,7 +126,7 @@ export default function ScanDetailScreen() {
                 {scan.authenticity?.toUpperCase() || 'UNKNOWN'}
               </Text>
               <Text style={styles.authenticityConfidence}>
-                Confidence: {(scan.confidence * 100).toFixed(2)}%
+                Confidence: {(scan.authenticityConfidence * 100).toFixed(2)}%
               </Text>
             </View>
           </View>

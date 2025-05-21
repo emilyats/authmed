@@ -25,8 +25,8 @@ app = FastAPI()
 origins = [
     "http://localhost:19006",  # Expo development server
     "exp://localhost:19000",   # Expo Go
-    "exp://172.20.10.3:19000",  # Your actual IP
-    "http://172.20.10.3:8003",  # Your backend server
+    "exp://192.168.1.13:19000",  # Your actual IP
+    "http://192.168.1.13:8003",  # Your backend server
     "*"  # Allow all origins for development
 ]
 
@@ -37,10 +37,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Load model using TFSMLayer for Keras 3 compatibility
-MODEL = tf.saved_model.load("ssd_mobilenet_v2-may14/saved_model")
-CLASS_NAMES = ['bioflu', 'biogesic', 'buscopan', 'decolgen', 'flanax', 'imodium']
 
 # Roboflow configuration
 ROBOFLOW_API_KEY = "JkbZVyIu72Moc2qR229m"
@@ -56,6 +52,13 @@ roboflow_detection_client = InferenceHTTPClient(
     api_url="https://serverless.roboflow.com",
     api_key=ROBOFLOW_API_KEY
 )
+
+# Load model using TFSMLayer for Keras 3 compatibility
+MODEL = tf.saved_model.load("ssd_mobilenet_v2-may14/saved_model")
+CLASS_NAMES = ['bioflu', 'biogesic', 'buscopan', 'decolgen', 'flanax', 'imodium']
+
+ALLOWED_DETECTION_MODEL = "ssd-mobilenetv2-detection/1"
+ALLOWED_CLASSES = set(CLASS_NAMES)  # Convert to set for faster lookup
 
 # Mount a static directory for serving cropped images
 if not os.path.exists('static'):
@@ -99,9 +102,15 @@ def classify_authenticity(image: np.ndarray) -> dict:
         # Convert numpy array to PIL Image
         pil_image = Image.fromarray(image)
         
+        # Standardize image size (e.g., 224x224 for common classification models)
+        pil_image = pil_image.resize((224, 224), Image.BICUBIC)
+        
+        # Basic preprocessing
+        pil_image = ImageOps.equalize(pil_image)  # Enhance contrast
+        
         # Save to temporary file
         temp_path = "temp_image.jpg"
-        pil_image.save(temp_path)
+        pil_image.save(temp_path, quality=95)  # High quality JPEG
         
         try:
             # Use Roboflow SDK to make prediction
@@ -115,25 +124,26 @@ def classify_authenticity(image: np.ndarray) -> dict:
             
             # Get the highest confidence prediction
             top_prediction = max(predictions, key=lambda x: x['confidence'])
-            confidence = top_prediction['confidence']
+            authenticity_confidence = top_prediction['confidence']
+            authenticity_class = top_prediction['class']
             
             # Determine authenticity status based on confidence
             if top_prediction['class'] == 'authentic':
-                if confidence >= 0.5:
+                if authenticity_confidence >= 0.5:
                     status = "authentic"
                 else:
                     status = "counterfeit"
             else:  # counterfeit class
-                if confidence >= 0.8:
+                if authenticity_confidence >= 0.8:
                     status = "counterfeit"
-                elif confidence >= 0.5:
+                elif authenticity_confidence >= 0.5:
                     status = "suspected counterfeit"
                 else:
                     status = "authentic"
             
             return {
-                "status": status,
-                "confidence": confidence
+            'status': authenticity_class,
+            'confidence': authenticity_confidence
             }
             
         finally:
@@ -254,7 +264,17 @@ async def predict_roboflow(file: UploadFile = File(...)):
 
             # Get the highest confidence detection
             top_detection = max(predictions, key=lambda x: x['confidence'])
-            predicted_class = top_detection['class']
+            predicted_class = top_detection['class'].lower()  # Convert to lowercase for comparison
+            
+            # Validate the predicted class is one of the allowed classes
+            if predicted_class not in CLASS_NAMES:
+                logger.warning(f"Predicted class '{predicted_class}' not in allowed classes: {CLASS_NAMES}")
+                return {
+                    'class': 'unknown',
+                    'confidence': 0.0,
+                    'message': 'Detected medicine is not in supported classes'
+                }
+                
             display_class = CLASS_NAME_MAP.get(predicted_class, predicted_class)
             confidence = top_detection['confidence']
 
