@@ -8,96 +8,75 @@ import {
   Image,
   StatusBar,
   Dimensions,
-  ActivityIndicator
+  ActivityIndicator,
+  ScrollView,
+  Linking,
+  Animated
 } from 'react-native';
-import { CameraView, Camera } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
 import * as ImagePicker from 'expo-image-picker';
-import Slider from '@react-native-community/slider';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, AntDesign } from '@expo/vector-icons';
 import axios from 'axios';
+import { FIREBASE_AUTH, FIREBASE_DB } from '../../firebaseConfig';
+import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { LinearGradient } from 'expo-linear-gradient';
 
 // Your computer's actual IP address
-const API_URL = 'http://192.168.0.19:8003';
+const API_URL = 'http://172.20.10.3:8003';
 
 export default function HomeScreen() {
   const [hasPermission, setHasPermission] = useState(null);
-  const [showCamera, setShowCamera] = useState(false);
-  const [facing, setFacing] = useState('back');
-  const [flashMode, setFlashMode] = useState('off');
-  const [zoom, setZoom] = useState(0);
   const [photo, setPhoto] = useState(null);
   const [img, setImg] = useState(null);
   const [detectionResult, setDetectionResult] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const cameraRef = useRef(null);
+  const [recentScans, setRecentScans] = useState([]);
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
-
+  const user = FIREBASE_AUTH.currentUser;
   const { width, height } = Dimensions.get('window');
+  const isSmallScreen = width <= 375;
 
-  const checkPermissions = async () => {
+  useEffect(() => {
+    (async () => {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      setHasPermission(status === 'granted');
+    })();
+  }, []);
+
+  const fetchRecentScans = async () => {
+    if (!user) {
+      setRecentScans([]);
+      setLoading(false);
+      return;
+    }
     try {
-      console.log("[CAM] Requesting permissions");
-      const [mediaStatus, cameraStatus] = await Promise.all([
-        MediaLibrary.requestPermissionsAsync(),
-        Camera.requestCameraPermissionsAsync()
-      ]);
-      setHasPermission(cameraStatus.status === 'granted');
-      return cameraStatus.status === 'granted';
+      const q = query(
+        collection(FIREBASE_DB, 'scanHistory'),
+        where('userId', '==', user.uid),
+        orderBy('scannedAt', 'desc')
+      );
+      const querySnapshot = await getDocs(q);
+      const items = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setRecentScans(items.slice(0, 3));
     } catch (error) {
-      console.error("[CAM] Permission error:", error);
-      return false;
+      console.error('Error fetching recent scans:', error);
+      setRecentScans([]);
+    } finally {
+      setLoading(false);
     }
   };
 
-  useEffect(() => {
-    let mounted = true;
-
-    const setupCamera = async () => {
-      const hasPermission = await checkPermissions();
-      if (mounted && hasPermission) {
-        setShowCamera(true);
-      }
-    };
-
-    setupCamera();
-
-    return () => {
-      mounted = false;
-      setShowCamera(false);
-      if (cameraRef.current) {
-        cameraRef.current.pausePreview();
-      }
-    };
-  }, []);
-
   useFocusEffect(
     useCallback(() => {
-      if (hasPermission) {
-        if (cameraRef.current) {
-          cameraRef.current.resumePreview();
-        }
-      }
-
+      fetchRecentScans();
       return () => {
-        if (cameraRef.current) {
-          cameraRef.current.pausePreview();
-        }
-        // Clear photo state when navigating away
         setPhoto(null);
         setImg(null);
       };
-    }, [hasPermission])
+    }, [user])
   );
-
-  const toggleCameraFacing = () => {
-    setFacing((current) => (current === 'back' ? 'front' : 'back'));
-  };
-
-  const toggleFlash = () => {
-    setFlashMode((current) => (current === 'on' ? 'off' : 'on'));
-  };
 
   const detectMedicine = async (imageUri) => {
     try {
@@ -118,6 +97,14 @@ export default function HomeScreen() {
         },
       });
 
+      // Check if medicine was detected with sufficient confidence
+      if (response.data.class === 'unknown' || response.data.confidence < 0.5) {
+        setPhoto(null);
+        setImg(null);
+        alert('No medicine detected or image is too blurry. Please try again.');
+        return;
+      }
+
       // Get the cropped image URL from the response
       const croppedImageUrl = `${API_URL}${response.data.cropped_image_url}`;
 
@@ -126,7 +113,7 @@ export default function HomeScreen() {
         params: {
           detectionResult: JSON.stringify({
             ...response.data,
-            cropped_image_url: croppedImageUrl // Pass the full URL
+            cropped_image_url: croppedImageUrl
           }),
           photoUri: imageUri,
         },
@@ -134,7 +121,7 @@ export default function HomeScreen() {
     } catch (error) {
       console.error('Error detecting medicine:', error);
       router.push({
-        pathname: '/(tabs)/ResultScreen',
+        pathname: '../ResultScreen',
         params: {
           detectionResult: JSON.stringify({
             class: 'error',
@@ -150,22 +137,26 @@ export default function HomeScreen() {
   };
 
   const handleScan = async () => {
-    if (cameraRef.current) {
-      const options = {
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 1,
-        base64: true,
-        skipProcessing: true,
-      };
-      const newPhoto = await cameraRef.current.takePictureAsync(options);
-      setPhoto(newPhoto);
-      console.log('Photo URI:', newPhoto.uri);
-      await detectMedicine(newPhoto.uri);
+        exif: true,
+        base64: false,
+      });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const photo = result.assets[0];
+        setPhoto({
+          uri: photo.uri,
+          width: photo.width,
+          height: photo.height
+        });
+        setImg(photo.uri);
+        await detectMedicine(photo.uri);
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
     }
-  };
-
-  const handleBackToCamera = () => {
-    setPhoto(null);
-    setDetectionResult(null);
   };
 
   const pickImage = async () => {
@@ -195,19 +186,6 @@ export default function HomeScreen() {
     }
   };
 
-  const getAuthenticityColor = (status) => {
-    switch (status) {
-      case 'authentic':
-        return '#4CAF50'; // Green
-      case 'suspected counterfeit':
-        return '#FFC107'; // Yellow
-      case 'counterfeit':
-        return '#F44336'; // Red
-      default:
-        return '#9E9E9E'; // Grey
-    }
-  };
-
   if (hasPermission === null) {
     return <View style={styles.loadingContainer}><Text style={styles.loadingText}>Requesting camera permission...</Text></View>;
   }
@@ -223,7 +201,7 @@ export default function HomeScreen() {
   if (photo) {
     return (
       <View style={styles.container}>
-        <TouchableOpacity onPress={handleBackToCamera} style={styles.backButton}>
+        <TouchableOpacity onPress={() => setPhoto(null)} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
         <Image 
@@ -242,177 +220,271 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar translucent backgroundColor="transparent" />
-      <CameraView
-        ref={cameraRef}
-        style={styles.camera}
-        facing={facing}
-        flash={flashMode}
-        zoom={zoom}
-      />
-
-      <SafeAreaView style={styles.uiContainer}>
-        {/* Top Camera Controls */}
-        <View style={styles.topBar}>
-          <TouchableOpacity onPress={pickImage}>
-            <Ionicons name="images-outline" size={24} color="white" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={toggleFlash}>
-            <Ionicons 
-              name={flashMode === 'on' ? "flash" : "flash-off"} 
-              size={24} 
-              color="white" 
-            />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={toggleCameraFacing}>
-            <Ionicons name="camera-reverse-outline" size={24} color="white" />
-          </TouchableOpacity>
+    <SafeAreaView style={styles.container}>
+      <ScrollView 
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollViewContent}
+      >
+        <View style={styles.header}>
+          <Text style={[styles.title, { fontSize: isSmallScreen ? 20 : 22 }]}>Welcome to AuthMed</Text>
+          <Text style={styles.subtitle}>Scan your medicines to verify their authenticity</Text>
         </View>
 
-        {/* Zoom Slider */}
-        <View style={styles.zoomSlider}>
-          <TouchableOpacity onPress={() => setZoom(Math.max(0, zoom - 0.1))}>
-            <Text style={styles.zoomText}>-</Text>
-          </TouchableOpacity>
-
-          <Slider
-            style={{ flex: 1 }}
-            minimumValue={0}
-            maximumValue={1}
-            value={zoom}
-            onValueChange={setZoom}
-            minimumTrackTintColor="#FFFFFF"
-            maximumTrackTintColor="#AAAAAA"
-          />
-
-          <TouchableOpacity onPress={() => setZoom(Math.min(1, zoom + 0.1))}>
-            <Text style={styles.zoomText}>+</Text>
-          </TouchableOpacity>
+        <View style={styles.recentScansContainer}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Recent Scans</Text>
+            <TouchableOpacity 
+              style={styles.viewAllButton}
+              onPress={() => router.push('/history')}
+            >
+              <Text style={styles.viewAllText}>View All</Text>
+              <Ionicons name="chevron-forward" size={16} color="#145185" />
+            </TouchableOpacity>
+          </View>
+          {loading ? (
+            <ActivityIndicator size="large" color="#145185" />
+          ) : recentScans.length === 0 ? (
+            <Text style={styles.emptyText}>No recent scans</Text>
+          ) : (
+            <View style={styles.recentScansGrid}>
+              {recentScans.map((item, idx) => (
+                <TouchableOpacity
+                  key={item.id || idx}
+                  style={styles.squareCard}
+                  onPress={() => router.push({ pathname: '../ScanDetailScreen', params: { scanId: item.id } })}
+                >
+                  {item.imageUrl ? (
+                    <Image
+                      source={{ uri: item.imageUrl }}
+                      style={styles.squareCardImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={styles.squareCardImagePlaceholder} />
+                  )}
+                  <Text style={styles.squareCardTitle} numberOfLines={1}>
+                    {item.medicineName || 'Medicine Name'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </View>
 
-        {/* Scan Button */}
-        <TouchableOpacity style={styles.scanButton} onPress={handleScan}>
-          <Text style={styles.scanButtonText}>Scan</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
-    </View>
+        <View style={styles.scanSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Scan Medicine</Text>
+          </View>
+          <Text style={styles.scanSubtitle}>Take a photo or upload an image</Text>
+          <View style={styles.scanOptionsContainer}>
+            <TouchableOpacity style={styles.scanOption} onPress={handleScan}>
+              <View style={styles.scanIconContainer}>
+                <Ionicons name="camera" size={32} color="white" />
+              </View>
+              <Text style={styles.scanOptionText}>Take Photo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.scanOption} onPress={pickImage}>
+              <View style={styles.scanIconContainer}>
+                <Ionicons name="images" size={32} color="white" />
+              </View>
+              <Text style={styles.scanOptionText}>Upload Image</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.quickLinksContainer}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Quick Links</Text>
+          </View>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.quickLinksScrollContent}
+          >
+            <TouchableOpacity 
+              style={styles.quickLinkButton}
+              onPress={() => Linking.openURL('https://www.fda.gov.ph/advisories/')}
+            >
+              <Ionicons name="newspaper" size={24} color="#145185" />
+              <Text style={styles.quickLinkText}>FDA Advisories</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.quickLinkButton}
+              onPress={() => Linking.openURL('https://www.fda.gov.ph/intensified-campaign-against-counterfeit-pharmaceutical-products/')}
+            >
+              <Ionicons name="warning" size={24} color="#145185" />
+              <Text style={styles.quickLinkText}>FDA Counterfeit Medicines Campaign</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.quickLinkButton}
+              onPress={() => Linking.openURL('https://www.unilab.com.ph/health-tips/how-do-you-know-if-your-medicine-is-fake/')}
+            >
+              <Ionicons name="checkmark-circle" size={24} color="#145185" />
+              <Text style={styles.quickLinkText}>Unilab Tips</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: 'white',
   },
-  camera: {
+  scrollView: {
     flex: 1,
+  },
+  scrollViewContent: {
+    paddingTop: 30,
+  },
+  header: {
+    backgroundColor: 'white',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 120,
+  },
+  title: {
+    fontFamily: 'Montserrat_700Bold',
+    color: '#35383F',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontFamily: 'Montserrat_500Medium',
+    color: '#666',
+    fontSize: 14,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  scanOptionsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
     width: '100%',
-    height: '100%',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    marginTop: 15,
   },
-  uiContainer: {
-    flex: 1,
-    backgroundColor: 'transparent',
+  scanOption: {
+    backgroundColor: '#3E719E',
+    borderRadius: 16,
+    padding: 25,
+    alignItems: 'center',
+    width: '45%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 5,
+  },
+  scanIconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  scanOptionText: {
+    fontFamily: 'Montserrat_600SemiBold',
+    color: 'white',
+    marginTop: 8,
+    fontSize: 16,
+  },
+  recentScansContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 40,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+    width: '100%',
+  },
+  sectionTitle: {
+    fontFamily: 'Montserrat_700Bold',
+    color: '#35383F',
+    fontSize: 18,
+  },
+  recentScansGrid: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    width: '100%',
+  },
+  squareCard: {
+    width: 120,
+    height: 120,
+    backgroundColor: '#3E719E',
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  squareCardImage: {
+    width: '100%',
+    height: '80%',
+    backgroundColor: '#35383F',
+  },
+  squareCardImagePlaceholder: {
+    width: '100%',
+    height: '80%',
+    backgroundColor: '#35383F',
+  },
+  squareCardTitle: {
+    color: 'white',
+    fontFamily: 'Montserrat_700Bold',
+    fontSize: 10,
+    padding: 5,
+    textAlign: 'center',
+  },
+  emptyText: {
+    fontFamily: 'Montserrat_500Medium',
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 20,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000',
+    backgroundColor: 'white',
   },
   loadingText: {
-    fontSize: 16,
     fontFamily: 'Montserrat_500Medium',
-    color: 'white',
+    color: '#35383F',
   },
   permissionContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#000',
+    backgroundColor: 'white',
   },
   permissionText: {
+    fontFamily: 'Montserrat_500Medium',
+    color: '#35383F',
     textAlign: 'center',
     marginBottom: 20,
-    fontSize: 16,
-    fontFamily: 'Montserrat_500Medium',
-    color: 'white',
-  },
-  topBar: {
-    marginTop: StatusBar.currentHeight || 20,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    width: '90%',
-    alignSelf: 'center',
-    paddingVertical: 10,
-    backgroundColor: 'rgba(20, 81, 133, 0.8)',
-    borderRadius: 12,
-  },
-  zoomSlider: {
-    position: 'absolute',
-    bottom: 190,
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '80%',
-    alignSelf: 'center',
-  },
-  zoomText: {
-    fontFamily: 'Montserrat_400Regular',
-    color: 'white',
-    fontSize: 20,
-    paddingHorizontal: 10,
-    fontWeight: 'bold',
-  },
-  scanButton: {
-    position: 'absolute',
-    bottom: 130,
-    alignSelf: 'center',
-    backgroundColor: '#145185',
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 40,
-    height: 45,
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 150,
-  },
-  scanButtonText: {
-    color: 'white',
-    fontSize: 12,
-    fontFamily: 'Montserrat_600SemiBold',
-  },
-  imageContainer: {
-    flex: 1,
-    backgroundColor: '#000',
   },
   preview: {
     flex: 1,
     width: '100%',
     backgroundColor: '#000',
   },
-  btnContainer: {
-    position: 'absolute',
-    bottom: 20,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    backgroundColor: '#fff',
-    padding: 10,
-  },
-  btn: {
-    marginHorizontal: 20,
-  },
   backButton: {
     position: 'absolute',
-    top: StatusBar.currentHeight || 80,
+    top: StatusBar.currentHeight || 40,
     left: 20,
     zIndex: 10,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -435,80 +507,63 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Montserrat_500Medium',
   },
-  resultContainer: {
-    position: 'absolute',
-    bottom: 100,
-    left: 20,
-    right: 20,
-    backgroundColor: '#3E719F',
-    padding: 15,
-    borderRadius: 10,
-  },
-  resultContainerCentered: {
-    position: 'absolute',
-    top: '42%',
-    left: 20,
-    right: 20,
-    transform: [{ translateY: -150 }],
-    backgroundColor: '#3E719F',
-    padding: 15,
-    borderRadius: 10,
+  viewAllButton: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  resultText: {
-    color: 'white',
-    fontSize: 16,
-    fontFamily: 'Montserrat_500Medium',
-    textAlign: 'center',
+  viewAllText: {
+    fontFamily: 'Montserrat_600SemiBold',
+    color: '#145185',
+    fontSize: 14,
+    marginRight: 4,
   },
-  authenticityContainer: {
-    marginTop: 10,
-    padding: 10,
-    borderRadius: 8,
+  quickLinksContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 30,
+    width: '100%',
     alignItems: 'center',
   },
-  authenticityText: {
-    color: 'white',
-    fontSize: 16,
-    fontFamily: 'Montserrat_600SemiBold',
-    textAlign: 'center',
+  quickLinksScrollContent: {
+    paddingRight: 20,
+    paddingLeft: 20,
+    paddingBottom: 20,
+    gap: 18,
+    alignItems: 'center',
   },
-  disclaimerText: {
-    color: '#fff',
-    fontSize: 12,
-    fontFamily: 'Montserrat_400Regular',
-    marginTop: 10,
-    textAlign: 'center',
-    opacity: 0.8,
-    paddingTop: 10
-  },
-  recommendationsContainer: {
-    marginTop: 8,
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: 'rgba(62,113,158,0.08)',
-  },
-  recommendationsTitle: {
-    color: '#fff',
-    fontFamily: 'Montserrat_600SemiBold',
-    fontSize: 13,
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  recommendationItem: {
-    color: '#fff',
-    fontFamily: 'Montserrat_400Regular',
-    fontSize: 12,
-    marginLeft: 4,
-    marginBottom: 2,
-  },
-  croppedImage: {
-    width: 180,
-    height: 180,
-    marginVertical: 16,
+  quickLinkButton: {
+    backgroundColor: '#F5F5F5',
     borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#fff',
-    backgroundColor: '#222',
+    padding: 15,
+    alignItems: 'center',
+    width: 200,
+    height: 100,
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  quickLinkText: {
+    fontFamily: 'Montserrat_600SemiBold',
+    color: '#145185',
+    marginTop: 8,
+    fontSize: 12,
+    textAlign: 'center',
+    width: '100%',
+  },
+  scanSection: {
+    paddingHorizontal: 20,
+    marginBottom: 20,
+    width: '100%',
+    alignItems: 'center',
+  },
+  scanSubtitle: {
+    fontFamily: 'Montserrat_500Medium',
+    color: '#666',
+    fontSize: 14,
+    textAlign: 'left',
+    marginBottom: 20,
+    paddingHorizontal: 20,
   },
 });
