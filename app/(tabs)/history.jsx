@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, Dimensions, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { AntDesign } from '@expo/vector-icons';
 import { FIREBASE_AUTH, FIREBASE_DB } from '../../firebaseConfig';
@@ -15,6 +15,7 @@ export default function HistoryScreen() {
   const isSmallScreen = width <= 375;
 
   useEffect(() => {
+    console.log('Current user:', user);
     const fetchHistory = async () => {
       if (!user) {
         setHistory([]);
@@ -29,9 +30,11 @@ export default function HistoryScreen() {
         );
         const querySnapshot = await getDocs(q);
         const items = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        console.log('Fetched history:', items);
         setHistory(items);
       } catch (error) {
         setHistory([]);
+        console.error('Error fetching history:', error);
       } finally {
         setLoading(false);
       }
@@ -69,16 +72,25 @@ export default function HistoryScreen() {
       ) : (
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {history.map((item, idx) => (
-            <View key={item.id || idx} style={styles.card}>
+            <TouchableOpacity
+              key={item.id || idx}
+              style={styles.card}
+              onPress={() => router.push({ pathname: '../ScanDetailScreen', params: { scanId: item.id } })}
+            >
               <View style={styles.cardTextContainer}>
-                <Text style={[styles.cardTitle, { fontSize: isSmallScreen ? 13 : 15 }]}>{item.medicineName || 'Medicine Name'}</Text>
-                <Text style={[styles.cardSubtitle, { fontSize: isSmallScreen ? 10 : 11 }]}>{item.scannedAt ? new Date(item.scannedAt.seconds * 1000).toLocaleString() : 'mm/dd/yyyy 00:00'}</Text>
+                <Text style={styles.cardTitle}>{item.medicineName || 'Medicine Name'}</Text>
+                <Text style={styles.cardSubtitle}>{item.scannedAt ? new Date(item.scannedAt.seconds * 1000).toLocaleString() : 'mm/dd/yyyy 00:00'}</Text>
               </View>
-              <View style={[styles.cardImagePlaceholder, { 
-                width: isSmallScreen ? 30 : 36,
-                height: isSmallScreen ? 30 : 36
-              }]} />
-            </View>
+              {item.imageUrl ? (
+                <Image
+                  source={{ uri: item.imageUrl }}
+                  style={styles.cardImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.cardImagePlaceholder} />
+              )}
+            </TouchableOpacity>
           ))}
         </ScrollView>
       )}
@@ -156,7 +168,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     paddingHorizontal: 18,
     marginBottom: 18,
-    shadowColor: 'black',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.15,
     shadowRadius: 3.5,
@@ -169,14 +181,25 @@ const styles = StyleSheet.create({
     color: 'white',
     fontFamily: 'Montserrat_700Bold',
     marginBottom: 2,
+    fontSize: 15,
   },
   cardSubtitle: {
     color: 'white',
     fontFamily: 'Montserrat_500Medium',
+    fontSize: 11,
   },
-  cardImagePlaceholder: {
-    backgroundColor: '#35383F',
+  cardImage: {
+    width: 36,
+    height: 36,
     borderRadius: 6,
     marginLeft: 16,
+    backgroundColor: '#35383F',
+  },
+  cardImagePlaceholder: {
+    width: 36,
+    height: 36,
+    borderRadius: 6,
+    marginLeft: 16,
+    backgroundColor: '#35383F',
   },
 });

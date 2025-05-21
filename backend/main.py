@@ -61,6 +61,16 @@ if not os.path.exists('static'):
     os.makedirs('static')
 app.mount('/static', StaticFiles(directory='static'), name='static')
 
+CLASS_NAME_MAP = {
+    "decolgen": "Decolgen Forte",
+    "bioflu": "Bioflu",
+    "biogesic": "Biogesic",
+    "buscopan": "Buscopan Venus",
+    "flanax": "Flanax",
+    "imodium": "Imodium",
+    # Add more mappings as needed
+}
+
 def crop_image(image: np.ndarray, box: list, img_size: Tuple[int, int]) -> np.ndarray:
     """Crop image based on bounding box coordinates."""
     height, width = image.shape[:2]
@@ -175,6 +185,7 @@ async def predict(file: UploadFile = File(...)):
             # Get the highest confidence detection
             if len(scores) > 0 and scores[0] > 0.5:  # Only consider detections with confidence > 0.5
                 predicted_class = CLASS_NAMES[classes[0] - 1]  # Subtract 1 because classes are 1-indexed
+                display_class = CLASS_NAME_MAP.get(predicted_class, predicted_class)
                 confidence = float(scores[0])
                 box = boxes[0].tolist()
                 
@@ -188,7 +199,7 @@ async def predict(file: UploadFile = File(...)):
                 logger.info(f"Authenticity result: {authenticity_result}")
                 
                 return {
-                    'class': predicted_class,
+                    'class': display_class,
                     'confidence': confidence,
                     'box': box,
                     'authenticity': authenticity_result
@@ -241,20 +252,33 @@ async def predict_roboflow(file: UploadFile = File(...)):
             # Get the highest confidence detection
             top_detection = max(predictions, key=lambda x: x['confidence'])
             predicted_class = top_detection['class']
+            display_class = CLASS_NAME_MAP.get(predicted_class, predicted_class)
             confidence = top_detection['confidence']
 
             # Get image dimensions
             image = np.array(Image.open(temp_path).convert('RGB'))
             img_height, img_width = image.shape[:2]
 
-            # Calculate box coordinates in pixel space
-            ymin = int(max(0, top_detection['y'] - top_detection['height'] / 2))
-            xmin = int(max(0, top_detection['x'] - top_detection['width'] / 2))
-            ymax = int(min(img_height, top_detection['y'] + top_detection['height'] / 2))
-            xmax = int(min(img_width, top_detection['x'] + top_detection['width'] / 2))
+            # Calculate box coordinates in pixel space using Roboflow's dynamic cropping approach
+            x_center = top_detection['x']
+            y_center = top_detection['y']
+            width = top_detection['width']
+            height = top_detection['height']
 
-            # Crop the image
-            cropped_image = image[ymin:ymax, xmin:xmax]
+            # Convert center coordinates to x_min, y_min, x_max, y_max format
+            x_min = int(max(0, x_center - width / 2))
+            y_min = int(max(0, y_center - height / 2))
+            x_max = int(min(img_width, x_center + width / 2))
+            y_max = int(min(img_height, y_center + height / 2))
+
+            # Ensure coordinates are within image bounds
+            x_min = max(0, x_min)
+            y_min = max(0, y_min)
+            x_max = min(img_width, x_max)
+            y_max = min(img_height, y_max)
+
+            # Crop the image using the calculated coordinates
+            cropped_image = image[y_min:y_max, x_min:x_max]
 
             # Save cropped image to static directory with a unique name
             cropped_filename = f"{predicted_class}_{uuid.uuid4().hex}.jpg"
@@ -274,9 +298,9 @@ async def predict_roboflow(file: UploadFile = File(...)):
             logger.info(f"Authenticity result: {authenticity_result}")
 
             return {
-                'class': predicted_class,
+                'class': display_class,
                 'confidence': confidence,
-                'box': [ymin, xmin, ymax, xmax],
+                'box': [y_min, x_min, y_max, x_max],  # Keep format consistent with previous implementation
                 'cropped_image_url': cropped_image_url,
                 'authenticity': authenticity_result
             }
@@ -285,6 +309,76 @@ async def predict_roboflow(file: UploadFile = File(...)):
                 os.remove(temp_path)
     except Exception as e:
         logger.error(f"Error in predict endpoint: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/predict_realtime")
+async def predict_realtime(file: UploadFile = File(...)):
+    try:
+        logger.info("Received real-time detection request")
+        # Save uploaded image to a temporary file
+        contents = await file.read()
+        temp_path = "temp_detection_image.jpg"
+        with open(temp_path, "wb") as f:
+            f.write(contents)
+        logger.info(f"Saved temporary image to {temp_path}")
+
+        try:
+            # Use Roboflow serverless detection model
+            logger.info("Sending request to Roboflow")
+            detection_result = roboflow_detection_client.infer(
+                temp_path, model_id="ssd-mobilenetv2-detection/1"
+            )
+            logger.info(f"Roboflow Detection API response: {detection_result}")
+
+            # Parse detection result
+            predictions = detection_result.get('predictions', [])
+            if not predictions:
+                logger.info("No predictions found")
+                return {
+                    'class': 'unknown',
+                    'confidence': 0.0,
+                    'message': 'No medicine detected with high confidence'
+                }
+
+            # Get the highest confidence detection
+            top_detection = max(predictions, key=lambda x: x['confidence'])
+            predicted_class = top_detection['class']
+            display_class = CLASS_NAME_MAP.get(predicted_class, predicted_class)
+            confidence = top_detection['confidence']
+            logger.info(f"Top detection: class={predicted_class}, confidence={confidence}")
+
+            # Get image dimensions
+            image = np.array(Image.open(temp_path).convert('RGB'))
+            img_height, img_width = image.shape[:2]
+            logger.info(f"Image dimensions: {img_width}x{img_height}")
+
+            # Calculate box coordinates in pixel space
+            x_center = top_detection['x']
+            y_center = top_detection['y']
+            width = top_detection['width']
+            height = top_detection['height']
+            logger.info(f"Detection coordinates: center=({x_center}, {y_center}), size={width}x{height}")
+
+            # Convert center coordinates to x_min, y_min, x_max, y_max format
+            x_min = int(max(0, x_center - width / 2))
+            y_min = int(max(0, y_center - height / 2))
+            x_max = int(min(img_width, x_center + width / 2))
+            y_max = int(min(img_height, y_center + height / 2))
+            logger.info(f"Bounding box: [{y_min}, {x_min}, {y_max}, {x_max}]")
+
+            return {
+                'class': display_class,
+                'confidence': confidence,
+                'box': [y_min, x_min, y_max, x_max],
+                'image_width': img_width,
+                'image_height': img_height
+            }
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+                logger.info("Removed temporary image file")
+    except Exception as e:
+        logger.error(f"Error in realtime predict endpoint: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
 
 if __name__ == "__main__":

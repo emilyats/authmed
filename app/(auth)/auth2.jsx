@@ -12,7 +12,7 @@ import {
   Alert
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { AntDesign } from '@expo/vector-icons';
+import { AntDesign, Ionicons } from '@expo/vector-icons';
 import { FIREBASE_AUTH } from '../../firebaseConfig';
 import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 
@@ -26,6 +26,9 @@ export default function SignUpScreen() {
   const [emailError, setEmailError] = useState(false);
   const [passwordError, setPasswordError] = useState(false);
   const [confirmPasswordError, setConfirmPasswordError] = useState(false);
+  
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
   const router = useRouter();
   const auth = FIREBASE_AUTH;
@@ -125,7 +128,7 @@ export default function SignUpScreen() {
         <View style={styles.formWrapper}>
           <Text style={styles.headerText}>Let's get started!</Text>
           
-          <View style={styles.labelContainer}>
+          <View style={styles.labelRow}>
             <Text style={styles.labelText}>Email</Text>
             {emailError && <Text style={styles.errorText}>*Enter a valid email</Text>}
           </View>
@@ -141,38 +144,54 @@ export default function SignUpScreen() {
             autoCapitalize="none"
           />
           
-          <View style={styles.labelContainer}>
+          <View style={styles.labelRow}>
             <Text style={styles.labelText}>Password</Text>
             {passwordError && <Text style={styles.errorText}>*Min. 6 characters</Text>}
           </View>
-          <TextInput
-            style={[styles.input, passwordError && styles.inputError]}
-            secureTextEntry
-            placeholder="Create a password"
-            value={password}
-            onChangeText={(text) => {
-              setPassword(text);
-              if (text.trim() && text.length >= 6) setPasswordError(false);
-              if (text === confirmPassword) setConfirmPasswordError(false);
-            }}
-            autoCapitalize="none"
-          />
+          <View style={{ position: 'relative' }}>
+            <TextInput
+              style={[styles.input, passwordError && styles.inputError]}
+              secureTextEntry={!showPassword}
+              placeholder="Create a password"
+              value={password}
+              onChangeText={(text) => {
+                setPassword(text);
+                if (text.trim() && text.length >= 6) setPasswordError(false);
+                if (text === confirmPassword) setConfirmPasswordError(false);
+              }}
+              autoCapitalize="none"
+            />
+            <TouchableOpacity
+              style={{ position: 'absolute', right: 14, top: 14 }}
+              onPress={() => setShowPassword((prev) => !prev)}
+            >
+              <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={22} color="#35383F" />
+            </TouchableOpacity>
+          </View>
           
-          <View style={styles.labelContainer}>
+          <View style={styles.labelRow}>
             <Text style={styles.labelText}>Confirm Password</Text>
             {confirmPasswordError && <Text style={styles.errorText}>*Passwords don't match</Text>}
           </View>
-          <TextInput
-            style={[styles.input, confirmPasswordError && styles.inputError]}
-            secureTextEntry
-            placeholder="Confirm your password"
-            value={confirmPassword}
-            onChangeText={(text) => {
-              setConfirmPassword(text);
-              if (text === password) setConfirmPasswordError(false);
-            }}
-            autoCapitalize="none"
-          />
+          <View style={{ position: 'relative' }}>
+            <TextInput
+              style={[styles.input, confirmPasswordError && styles.inputError]}
+              secureTextEntry={!showConfirmPassword}
+              placeholder="Confirm your password"
+              value={confirmPassword}
+              onChangeText={(text) => {
+                setConfirmPassword(text);
+                if (text === password) setConfirmPasswordError(false);
+              }}
+              autoCapitalize="none"
+            />
+            <TouchableOpacity
+              style={{ position: 'absolute', right: 14, top: 14 }}
+              onPress={() => setShowConfirmPassword((prev) => !prev)}
+            >
+              <Ionicons name={showConfirmPassword ? 'eye-off' : 'eye'} size={22} color="#35383F" />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
       
@@ -229,22 +248,23 @@ const styles = StyleSheet.create({
     marginBottom: 30,
     textAlign: 'center',
   },
-  labelContainer: {
+  labelRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 5,
+    marginTop: 12,
+    marginLeft: 8,
   },
   labelText: {
     fontSize: 12,
     fontFamily: 'Montserrat_500Medium',
     color: '#35383F',
-    paddingLeft: 8
   },
   errorText: {
-    fontSize: 12,
+    fontSize: 10,
     fontFamily: 'Montserrat_500Medium',
     color: 'red',
-    marginLeft: 8,
   },
   input: {
     height: 50,

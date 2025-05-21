@@ -1,12 +1,16 @@
-import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, Image, TouchableOpacity, StyleSheet, ScrollView, SafeAreaView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { API_URL } from './(tabs)/home';
+import { FIREBASE_AUTH, FIREBASE_DB } from '../firebaseConfig';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 export default function ResultScreen() {
   const router = useRouter();
   const { detectionResult: detectionResultStr } = useLocalSearchParams();
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
   // Parse detectionResult from string if passed as JSON
   const detectionResult = typeof detectionResultStr === 'string' ? JSON.parse(detectionResultStr) : detectionResultStr;
 
@@ -16,6 +20,37 @@ export default function ResultScreen() {
       case 'suspected counterfeit': return '#FFC107';
       case 'counterfeit': return '#F44336';
       default: return '#9E9E9E';
+    }
+  };
+
+  const handleSaveToHistory = async () => {
+    try {
+      setIsSaving(true);
+      const user = FIREBASE_AUTH.currentUser;
+      
+      if (!user) {
+        alert('Please sign in to save scan history');
+        return;
+      }
+
+      const scanData = {
+        userId: user.uid,
+        medicineName: detectionResult.class,
+        confidence: detectionResult.confidence,
+        authenticity: detectionResult.authenticity?.status || 'unknown',
+        authenticityConfidence: detectionResult.authenticity?.confidence || 0,
+        imageUrl: detectionResult.cropped_image_url,
+        scannedAt: serverTimestamp()
+      };
+
+      await addDoc(collection(FIREBASE_DB, 'scanHistory'), scanData);
+      setIsSaved(true);
+      alert('Scan saved to history successfully!');
+    } catch (error) {
+      console.error('Error saving to history:', error);
+      alert('Failed to save scan to history');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -50,6 +85,19 @@ export default function ResultScreen() {
               </Text>
             </View>
           )}
+          <TouchableOpacity 
+            style={[styles.saveButton, isSaved && styles.saveButtonSaved]} 
+            onPress={handleSaveToHistory}
+            disabled={isSaving || isSaved}
+          >
+            {isSaving ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={styles.saveButtonText}>
+                {isSaved ? 'Saved to History' : 'Save to History'}
+              </Text>
+            )}
+          </TouchableOpacity>
         </View>
 
         {detectionResult.authenticity && (
@@ -180,5 +228,23 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 370,
     marginTop: 10,
+  },
+  saveButton: {
+    backgroundColor: '#145185',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    marginTop: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 150,
+  },
+  saveButtonSaved: {
+    backgroundColor: '#4CAF50',
+  },
+  saveButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontFamily: 'Montserrat_600SemiBold',
   },
 }); 

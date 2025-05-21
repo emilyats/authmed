@@ -82,7 +82,7 @@ export default function ResetPassScreen() {
           <View style={styles.formWrapper}>
             <Text style={styles.headerText}>Reset Password</Text>
 
-            <View style={styles.labelContainer}>
+            <View style={styles.labelRow}>
               <Text style={styles.labelText}>Your Email</Text>
               {emailError && <Text style={styles.errorText}>*Enter a valid email</Text>}
             </View>
@@ -157,10 +157,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: 'center',
   },
-  labelContainer: {
+  labelRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 5,
+    marginTop: 12,
   },
   labelText: {
     fontSize: 12,
@@ -169,10 +171,9 @@ const styles = StyleSheet.create({
     paddingLeft: 8
   },
   errorText: {
-    fontSize: 12,
+    fontSize: 10,
     fontFamily: 'Montserrat_500Medium',
     color: 'red',
-    marginLeft: 8,
   },
   input: {
     height: 50,

@@ -18,6 +18,7 @@ import { useRouter } from 'expo-router';
 import AuthMedLogo1 from '../../assets/svg/authmedlogo1.svg';
 import { FIREBASE_AUTH, FIREBASE_APP } from '../../firebaseConfig';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import { Ionicons } from '@expo/vector-icons';
 
 const AuthMedLogo = () => (
   <View style={styles.logoContainer}>
@@ -34,6 +35,7 @@ const LoginScreen = () => {
     const [password, setPassword] = useState('');
     const [emailError, setEmailError] = useState(false);
     const [passwordError, setPasswordError] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
     const router = useRouter();
     const auth = FIREBASE_AUTH;
     
@@ -123,9 +125,9 @@ const LoginScreen = () => {
               
               <Text style={[styles.headerText, { fontSize: isSmallScreen ? 20 : 24 }]}>Login to Your Account</Text>
               
-              <View style={styles.labelContainer}>
+              <View style={styles.labelRow}>
                 <Text style={[styles.labelText, { fontSize: isSmallScreen ? 10 : 12 }]}>Email</Text>
-                {emailError && <Text style={[styles.errorText, { fontSize: isSmallScreen ? 10 : 12 }]}>*Email missing*</Text>}
+                {emailError && <Text style={styles.errorText}>*Email missing</Text>}
               </View>
               <TextInput
                 style={[styles.input, emailError && styles.inputError, { 
@@ -142,24 +144,34 @@ const LoginScreen = () => {
                 autoCapitalize="none"
               />
               
-              <View style={styles.labelContainer}>
+              <View style={styles.labelRow}>
                 <Text style={[styles.labelText, { fontSize: isSmallScreen ? 10 : 12 }]}>Password</Text>
-                {passwordError && <Text style={[styles.errorText, { fontSize: isSmallScreen ? 10 : 12 }]}>*Password missing*</Text>}
+                {passwordError && <Text style={styles.errorText}>*Password missing</Text>}
               </View>
-              <TextInput
-                style={[styles.input, passwordError && styles.inputError, { 
-                  height: isSmallScreen ? 45 : 50,
-                  fontSize: isSmallScreen ? 14 : 16
-                }]}
-                secureTextEntry
-                placeholder="Enter your password"
-                value={password}
-                onChangeText={(text) => {
-                  setPassword(text);
-                  if (text.trim()) setPasswordError(false);
-                }}
-                autoCapitalize="none"
-              />
+              <View style={{ position: 'relative' }}>
+                <TextInput
+                  style={[styles.input, passwordError && styles.inputError, { 
+                    height: isSmallScreen ? 45 : 50,
+                    fontSize: isSmallScreen ? 14 : 16
+                  }]}
+                  secureTextEntry={!showPassword}
+                  placeholder="Enter your password"
+                  value={password}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    if (text.trim()) setPasswordError(false);
+                  }}
+                  autoCapitalize="none"
+                  returnKeyType="done"
+                  onSubmitEditing={handleLogin}
+                />
+                <TouchableOpacity
+                  style={{ position: 'absolute', right: 14, top: 14 }}
+                  onPress={() => setShowPassword((prev) => !prev)}
+                >
+                  <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={22} color="#35383F" />
+                </TouchableOpacity>
+              </View>
               
               <View style={[styles.forgotPassContainer, { marginBottom: isSmallScreen ? 15 : 20 }]}>
                 <Text style={[styles.forgotPasswordText, { fontSize: isSmallScreen ? 9 : 10 }]}>Forgot your password? </Text>
@@ -189,18 +201,6 @@ const LoginScreen = () => {
                   <Text style={[styles.signUpText, { fontSize: isSmallScreen ? 12 : 14 }]}>Sign up</Text>
                 </TouchableOpacity>
               </View>
-              
-              <View style={styles.dividerContainer}>
-                <View style={styles.divider} />
-                <Text style={[styles.dividerText, { fontSize: isSmallScreen ? 12 : 14 }]}>or</Text>
-                <View style={styles.divider} />
-              </View>
-              
-              <TouchableOpacity style={[styles.proceedButton, { marginTop: isSmallScreen ? 15 : 20 }]} onPress={handleNoAccount}>
-                <Text style={[styles.proceedButtonText, { fontSize: isSmallScreen ? 12 : 14 }]}>Proceed without an account*</Text>
-              </TouchableOpacity>
-              
-              <Text style={[styles.disclaimerText, { fontSize: isSmallScreen ? 10 : 12 }]}>*User history is not saved</Text>
             </View>
           </TouchableWithoutFeedback>
         </ScrollView>
@@ -218,6 +218,7 @@ const styles = StyleSheet.create({
         flexGrow: 1,
         padding: 35,
         paddingBottom: 50,
+        justifyContent: 'center'
     },
     logoContainer: {
         alignItems: 'center',
@@ -229,10 +230,12 @@ const styles = StyleSheet.create({
         marginBottom: 30,
         textAlign: 'center',
     },
-    labelContainer: {
+    labelRow: {
         flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 8,
+        marginBottom: 5,
+        marginTop: 12,
     },
     labelText: {
         fontFamily: 'Montserrat_500Medium',
@@ -240,9 +243,9 @@ const styles = StyleSheet.create({
         paddingLeft: 8
     },
     errorText: {
+        fontSize: 10,
         fontFamily: 'Montserrat_500Medium',
         color: 'red',
-        marginLeft: 8,
     },
     input: {
         borderWidth: 1,

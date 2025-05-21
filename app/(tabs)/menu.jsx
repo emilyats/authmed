@@ -64,6 +64,10 @@ export default function MenuScreen() {
     }
   };
 
+  const changePassword = () => {
+    router.push('/(auth)/auth4');
+  };
+
   const handleNotExisting = () => {
     // Placeholder: navigate to change password screen if implemented
     alert('Coming soon!');
@@ -108,7 +112,7 @@ export default function MenuScreen() {
         </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>User</Text>
-        <TouchableOpacity style={styles.menuButton} onPress={handleNotExisting}>
+        <TouchableOpacity style={styles.menuButton} onPress={changePassword}>
           <View style={styles.menuButtonContent}>
             <Text style={styles.menuButtonText}>Change Password</Text>
             <Text style={styles.menuButtonSubtitle}>Update your account password</Text>
