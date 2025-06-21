@@ -11,7 +11,8 @@ import {
   ActivityIndicator,
   ScrollView,
   Linking,
-  Animated
+  Animated,
+  Alert
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -21,9 +22,10 @@ import { FIREBASE_AUTH, FIREBASE_DB } from '../../firebaseConfig';
 import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import AuthMedLogo2 from '../../assets/svg/authmedlogo2.svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system';
 
 // Your computer's actual IP address
-const API_URL = 'http://172.20.10.3:8003';
+const API_URL = 'http://192.168.5.243:8003';
 
 
 export default function HomeScreen() {
@@ -100,13 +102,18 @@ export default function HomeScreen() {
       });
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const photo = result.assets[0];
+        // Copy to persistent local path
+        const fileName = photo.uri.split('/').pop();
+        const newPath = FileSystem.documentDirectory + fileName;
+        await FileSystem.copyAsync({ from: photo.uri, to: newPath });
         router.push({
           pathname: '../analyzing',
-          params: { photoUri: photo.uri }
+          params: { photoUri: newPath }
         });
       }
     } catch (error) {
       console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Failed to take photo. Please try again.');
     }
   };
 
@@ -124,13 +131,18 @@ export default function HomeScreen() {
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const selectedAsset = result.assets[0];
+        // Copy to persistent local path
+        const fileName = selectedAsset.uri.split('/').pop();
+        const newPath = FileSystem.documentDirectory + fileName;
+        await FileSystem.copyAsync({ from: selectedAsset.uri, to: newPath });
         router.push({
           pathname: '../analyzing',
-          params: { photoUri: selectedAsset.uri }
+          params: { photoUri: newPath }
         });
       }
     } catch (error) {
       console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image. Please try again.');
     }
   };
 

@@ -16,6 +16,50 @@ export default function ResultScreen() {
   // Parse detectionResult from string if passed as JSON
   const detectionResult = typeof detectionResultStr === 'string' ? JSON.parse(detectionResultStr) : detectionResultStr;
 
+  if (!detectionResult || detectionResult.class === 'error') {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+          <View style={{
+            backgroundColor: '#F8D7DA',
+            borderRadius: 16,
+            padding: 28,
+            alignItems: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.08,
+            shadowRadius: 8,
+            elevation: 2,
+            minWidth: 260
+          }}>
+            <Ionicons name="alert-circle" size={48} color="#F44336" style={{ marginBottom: 12 }} />
+            <Text style={{
+              color: '#B71C1C',
+              fontSize: 18,
+              fontFamily: 'Montserrat_700Bold',
+              textAlign: 'center',
+              marginBottom: 12
+            }}>
+              {detectionResult?.message || 'An error occurred while analyzing the image.'}
+            </Text>
+            <TouchableOpacity
+              style={{
+                backgroundColor: '#145185',
+                borderRadius: 8,
+                paddingVertical: 12,
+                paddingHorizontal: 32,
+                marginTop: 10
+              }}
+              onPress={() => router.replace('../(tabs)/home')}
+            >
+              <Text style={{ color: 'white', fontSize: 16, fontFamily: 'Montserrat_700Bold' }}>Go Home</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   const getAuthenticityColor = (status) => {
     switch (status) {
       case 'authentic': return '#4CAF50';
@@ -68,7 +112,7 @@ export default function ResultScreen() {
         extraScrollHeight={Platform.OS === 'ios' ? 20 : 0}
       >
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.push('../(tabs)/home')}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.replace('../(tabs)/home')}>
             <Ionicons name="arrow-back" size={24} color="#145185" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Scan Result</Text>

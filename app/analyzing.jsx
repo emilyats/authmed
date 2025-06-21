@@ -1,47 +1,86 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
+import mime from 'mime';
+import * as FileSystem from 'expo-file-system';
 
-const API_URL = 'http://192.168.1.13:8003';
+const API_URL = 'http://192.168.5.243:8003';
+
+// Utility to ensure file:// URI for Android uploads
+async function ensureFileUri(uri) {
+  if (uri.startsWith('file://')) {
+    return uri;
+  }
+  // For content:// URIs, copy to cache and return file:// URI
+  const fileName = uri.split('/').pop();
+  const newPath = `${FileSystem.cacheDirectory}${fileName}`;
+  await FileSystem.copyAsync({ from: uri, to: newPath });
+  return newPath;
+}
 
 export default function AnalyzingScreen() {
   const router = useRouter();
   const { photoUri } = useLocalSearchParams();
+  const cancelTokenSourceRef = useRef(null);
 
   useEffect(() => {
+    if (!photoUri) {
+      Alert.alert('No photo found', 'Please try again.');
+      router.back();
+      return;
+    }
     detectMedicine(photoUri);
+    // Cancel on unmount
+    return () => {
+      if (cancelTokenSourceRef.current) {
+        cancelTokenSourceRef.current.cancel('Request cancelled by user');
+      }
+    };
   }, [photoUri]);
 
   const detectMedicine = async (imageUri) => {
     try {
-      // Create form data
-      const formData = new FormData();
-      formData.append('file', {
-        uri: imageUri,
-        type: 'image/jpeg',
-        name: 'photo.jpg',
-      });
-
-      // Send to backend
-      const response = await axios.post(`${API_URL}/predict_roboflow`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      // Check if medicine was detected with sufficient confidence
-      if (response.data.class === 'unknown' || response.data.confidence < 0.5) {
+      // Ensure file:// URI for Android (content:// not supported by FormData/Axios)
+      const fileUri = await ensureFileUri(imageUri);
+      // Check if file exists before reading
+      const fileInfo = await FileSystem.getInfoAsync(fileUri);
+      if (!fileInfo.exists) {
+        console.error('File does not exist at:', fileUri);
+        Alert.alert('File Error', 'The selected image could not be found. Please try again.');
+        router.back();
+        return;
+      }
+      const base64 = await FileSystem.readAsStringAsync(fileUri, { encoding: FileSystem.EncodingType.Base64 });
+      const payload = {
+        image_base64: base64,
+        filename: 'photo.jpg',
+        mime: mime.getType(fileUri) || 'image/jpeg',
+      };
+      // Create a CancelToken source for this request
+      const source = axios.CancelToken.source();
+      cancelTokenSourceRef.current = source;
+      const response = await axios.post(
+        `${API_URL}/predict_base64`,
+        payload,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          cancelToken: source.token,
+        }
+      );
+      if (response.data.class === 'unknown' || response.data.confidence < 0.1) {
         alert('No medicine detected or image is too blurry. Please try again.');
         router.back();
         return;
       }
-
-      // Get the cropped image URL from the response
-      const croppedImageUrl = `${API_URL}${response.data.cropped_image_url}`;
-
-      router.push({
+      let croppedImageUrl = response.data.cropped_image_url;
+      if (croppedImageUrl && croppedImageUrl.startsWith('/static/')) {
+        croppedImageUrl = `${API_URL}${croppedImageUrl}`;
+      }
+      router.replace({
         pathname: '/result',
         params: {
           detectionResult: JSON.stringify({
@@ -52,8 +91,23 @@ export default function AnalyzingScreen() {
         },
       });
     } catch (error) {
+      if (axios.isCancel(error)) {
+        console.log('Request cancelled by user');
+        return;
+      }
+      if (error.response && error.response.status === 500) {
+        Alert.alert('Server Error', 'A server error occurred. Please try again later.');
+        router.back();
+        return;
+      }
+      if (error.message && error.message.includes('Network Error')) {
+        Alert.alert('Network Error', 'Please check your internet connection and try again.');
+        router.back();
+        return;
+      }
+      Alert.alert('Error', 'Error detecting medicine. Please try again.');
       console.error('Error detecting medicine:', error);
-      router.push({
+      router.replace({
         pathname: '/result',
         params: {
           detectionResult: JSON.stringify({
@@ -69,7 +123,12 @@ export default function AnalyzingScreen() {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+      <TouchableOpacity onPress={() => {
+        if (cancelTokenSourceRef.current) {
+          cancelTokenSourceRef.current.cancel('Request cancelled by user');
+        }
+        router.back();
+      }} style={styles.backButton}>
         <Ionicons name="arrow-back" size={32} color="white" />
       </TouchableOpacity>
       <Image 
@@ -79,10 +138,8 @@ export default function AnalyzingScreen() {
       />
       <View style={styles.processingContainer}>
         <ActivityIndicator size="large" color="#fff" />
-        <Text style={styles.processingText}>Analyzing medicine...</Text>
-        <Text style={[styles.processingText, { fontSize: 12, marginTop: 5 }]}>
-          Press back to cancel
-        </Text>
+        <Text style={styles.processingText}>Analyzing...</Text>
+        <Text style={[styles.processingText, { fontSize: 12, marginTop: 5 }]}>Press back to cancel</Text>
       </View>
     </View>
   );
