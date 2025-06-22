@@ -1,7 +1,10 @@
-fastapi==0.104.1
-uvicorn==0.24.0
-python-multipart==0.0.6
-pillow==10.1.0
-numpy==1.24.3
-tensorflow==2.14.0
-gunicorn==21.2.0
+fastapi==0.115.13
+inference_sdk==0.50.1
+numpy==1.23.5
+opencv_python==4.10.0.84
+opencv_python_headless==4.10.0.84
+Pillow==11.2.1
+pydantic==2.11.7
+torch==2.5.1+cu121
+torchvision==0.20.1+cu121
+uvicorn==0.34.3
