@@ -33,8 +33,8 @@ origins = [
     "*",  # adjust for production
     "http://localhost:19006",
     "exp://localhost:19000",
-    "http://192.168.5.243:8003",
-    "exp://192.168.5.243:8081",
+    "http://192.168.5.220:8003",
+    "exp://192.168.5.220:8081",
     "https://90f3-112-203-170-240.ngrok-free.app"
 ]
 logger.info(f"CORS origins: {origins}")
