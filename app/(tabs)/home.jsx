@@ -25,7 +25,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
 
 // Your computer's actual IP address
-const API_URL = 'http://192.168.5.243:8003';
+const API_URL = 'http://172.20.10.3:8003';
 
 
 export default function HomeScreen() {

@@ -140,19 +140,25 @@ class MedicineClassifier:
             info = {'orig_w': 0, 'orig_h': 0, 'new_w': 0, 'new_h': 0, 'pad_x': 0, 'pad_y': 0, 'target_size': target_size}
             return fallback, info
 
-    def is_ood(self, scores, top2_threshold=0.2, threshold=0.7):
-        # scores: numpy array of softmax scores
+    def is_ood(self, scores, top2_threshold, threshold, very_high_threshold=0.92):
         if len(scores) < 2:
             logger.info(f"OOD check: not enough scores (len={len(scores)}) -> OOD")
             return True
         top_two = np.sort(scores)[-2:]
-        logger.info(f"OOD check: top1={top_two[1]:.4f}, top2={top_two[0]:.4f}, threshold={threshold}, top2_threshold={top2_threshold}")
-        # Reject if top2 is less than top2_threshold
-        if top_two[0] < top2_threshold:
-            logger.info(f"OOD decision: top2 too low (top2={top_two[0]:.4f} < {top2_threshold}) -> OOD")
-            return True
-        if top_two[1] < threshold:
+        top1 = top_two[1]
+        top2 = top_two[0]
+        logger.info(f"OOD check: top1={top1:.4f}, top2={top2:.4f}, threshold={threshold}, top2_threshold={top2_threshold}, very_high_threshold={very_high_threshold}")
+        if top1 >= very_high_threshold:
+            logger.info("OOD decision: top1 >= very_high_threshold, accepted (not OOD)")
+            return False
+        if top1 < threshold:
+            if top2 > 0.6:
+                logger.info("OOD decision: top1 < threshold but top2 > 0.6, accepted (not OOD)")
+                return False
             logger.info("OOD decision: top1 below threshold -> OOD")
+            return True
+        if top2 < top2_threshold:
+            logger.info(f"OOD decision: top2 too low (top2={top2:.4f} < {top2_threshold}) -> OOD")
             return True
         logger.info("OOD decision: accepted (not OOD)")
         return False
@@ -167,8 +173,8 @@ class MedicineClassifier:
         labels = outputs['labels'].cpu().numpy()
         if len(scores) == 0:
             return {"class": "unknown", "confidence": 0.0, "message": "No detection"}
-        if self.is_ood(scores, top2_threshold=0.1, threshold=0.5):
-            return {"class": "unknown", "confidence": float(np.max(scores)), "message": "No high-confidence detection or ambiguous class"}
+        if self.is_ood(scores, top2_threshold=0.16, threshold=0.8):
+            return {"class": "unknown", "confidence": float(np.max(scores)), "message": "Medicine is not included in system."}
         top_idx = np.argmax(scores)
         pred_class_idx = labels[top_idx]
         pred_confidence = scores[top_idx]
@@ -180,12 +186,27 @@ class MedicineClassifier:
             predicted_class = "biogesic"
         if predicted_class not in ALLOWED_CLASSES:
             return {"class": "unknown", "confidence": float(pred_confidence), "message": "Unsupported class detected"}
+        # --- Crop and return on 320x320 preprocessed image ---
+        box = boxes[top_idx].astype(int)  # [x1, y1, x2, y2]
+        x1, y1, x2, y2 = map(int, box)
+        x1, y1 = max(0, x1), max(0, y1)
+        x2, y2 = min(319, x2), min(319, y2)
+        cropped_image_320 = (processed_image[y1:y2, x1:x2] * 255).astype('uint8')
+        # Save the cropped image for the frontend
+        cropped_filename = f"cropped_{predicted_class}_{uuid.uuid4().hex}.jpg"
+        cropped_path = os.path.join('static', cropped_filename)
+        from PIL import Image as PILImage
+        PILImage.fromarray(cropped_image_320).save(cropped_path)
+        # Optionally, you can still run authenticity on the cropped image if needed
+        authenticity_result = classify_authenticity(cropped_image_320)
         return {
             "class": CLASS_NAME_MAP[predicted_class],
             "confidence": float(pred_confidence),
-            "box": boxes[top_idx].astype(int).tolist(),
-            "raw_class": predicted_class,
-            "preprocess_info": info
+            "box": [int(x1), int(y1), int(x2), int(y2)],
+            "raw_class": str(predicted_class),
+            "cropped_image_url": f"/static/{cropped_filename}",
+            "authenticity": authenticity_result,
+            "preprocess_info": {k: (int(v) if isinstance(v, (np.integer,)) else float(v) if isinstance(v, (np.floating,)) else v) for k, v in info.items()}
         }
 
 MODEL_PATH = "best_ssd_mobilenetv3.pth"
@@ -207,14 +228,20 @@ async def internal_server_error_handler(request: Request, exc: Exception):
         content={"error": "Internal server error. Please try again later."}
     )
 
-def is_blurry(image: np.ndarray, threshold: float = 50.0) -> bool:
+def is_blurry(image: np.ndarray, threshold: float = 60.0) -> bool:
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
     laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
     logger.info(f"Blurriness (Laplacian variance): {laplacian_var}")
-    if (laplacian_var < threshold) or (laplacian_var > 650):
+    if (laplacian_var < threshold):
         return True
     else:
         return False
+
+def is_poor_lighting(image: np.ndarray, min_brightness: float = 40, max_brightness: float = 220) -> bool:
+    gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+    avg_brightness = gray.mean()
+    logger.info(f"Average brightness: {avg_brightness}")
+    return avg_brightness < min_brightness or avg_brightness > max_brightness
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
@@ -237,7 +264,10 @@ async def predict(file: UploadFile = File(...)):
         image, _ = read_file_as_image(contents)
         if is_blurry(image):
             logger.info("Rejected blurry image")
-            return {"class": "unknown", "confidence": 0.0, "message": "Image is too blurry. Please try again with a clearer photo."}
+            return {"class": "unknown", "confidence": 0.0, "message": "Image is unclear. Please try again with a clearer photo."}
+        if is_poor_lighting(image):
+            logger.info("Rejected poor lighting image")
+            return {"class": "unknown", "confidence": 0.0, "message": "Image has poor lighting. Please retake in better conditions."}
         result = classifier.predict(contents)
         logger.info(f"Prediction result: {result}")
         
@@ -249,11 +279,11 @@ async def predict(file: UploadFile = File(...)):
             orig_w, orig_h = info['orig_w'], info['orig_h']
             new_w, new_h = info['new_w'], info['new_h']
             pad_x, pad_y = info['pad_x'], info['pad_y']
-            # Remove padding
-            x1 = max(box[1] - pad_x, 0)
-            y1 = max(box[0] - pad_y, 0)
-            x2 = max(box[3] - pad_x, 0)
-            y2 = max(box[2] - pad_y, 0)
+            # Remove padding (corrected order)
+            x1 = max(box[0] - pad_x, 0)
+            y1 = max(box[1] - pad_y, 0)
+            x2 = max(box[2] - pad_x, 0)
+            y2 = max(box[3] - pad_y, 0)
             # Scale back to original
             scale_x = orig_w / new_w if new_w > 0 else 1
             scale_y = orig_h / new_h if new_h > 0 else 1
@@ -266,6 +296,16 @@ async def predict(file: UploadFile = File(...)):
             # Crop from original image
             image, _ = read_file_as_image(contents)
             cropped_image = image[y1:y2, x1:x2]
+            # Debug: Save images
+            os.makedirs('static/debug', exist_ok=True)
+            try:
+                Image.fromarray(image).save('static/debug/debug_original.jpg')
+                Image.fromarray(cropped_image).save('static/debug/debug_cropped.jpg')
+                img_copy = image.copy()
+                cv2.rectangle(img_copy, (x1, y1), (x2, y2), (255, 0, 0), 2)
+                cv2.imwrite('static/debug/debug_box.jpg', cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
+            except Exception as e:
+                logger.error(f"Error saving debug images: {e}")
             authenticity_result = classify_authenticity(cropped_image)
             result["authenticity"] = authenticity_result
             cropped_filename = f"cropped_{result['raw_class']}_{uuid.uuid4().hex}.jpg"
@@ -302,8 +342,10 @@ def classify_authenticity(image: np.ndarray) -> dict:
             top_pred = max(predictions, key=lambda x: x['confidence'])
             conf = top_pred['confidence']
             label = top_pred['class']
-            if label == 'authentic' and conf >= 0.5:
+            if label == 'authentic' and conf > 0.5:
                 status = "authentic"
+            elif label == 'authentic' and conf <= 0.5:
+                status = "suspected counterfeit"
             elif label == 'counterfeit' and conf >= 0.8:
                 status = "counterfeit"
             elif label == 'counterfeit' and conf >= 0.5:
@@ -342,7 +384,10 @@ async def predict_base64(payload: ImagePayload):
         image, _ = read_file_as_image(image_data)
         if is_blurry(image):
             logger.info("Rejected blurry image (base64)")
-            return {"class": "unknown", "confidence": 0.0, "message": "Image is too blurry. Please try again with a clearer photo."}
+            return {"class": "unknown", "confidence": 0.0, "message": "Image is unclear. Please try again with a clearer photo."}
+        if is_poor_lighting(image):
+            logger.info("Rejected poor lighting image (base64)")
+            return {"class": "unknown", "confidence": 0.0, "message": "Image has poor lighting. Please retake in better conditions."}
         result = classifier.predict(image_data)
         logger.info(f"Prediction result: {result}")
         # For authenticity, we need the original image and box if detection succeeded
@@ -352,10 +397,10 @@ async def predict_base64(payload: ImagePayload):
             orig_w, orig_h = info['orig_w'], info['orig_h']
             new_w, new_h = info['new_w'], info['new_h']
             pad_x, pad_y = info['pad_x'], info['pad_y']
-            x1 = max(box[1] - pad_x, 0)
-            y1 = max(box[0] - pad_y, 0)
-            x2 = max(box[3] - pad_x, 0)
-            y2 = max(box[2] - pad_y, 0)
+            x1 = max(box[0] - pad_x, 0)
+            y1 = max(box[1] - pad_y, 0)
+            x2 = max(box[2] - pad_x, 0)
+            y2 = max(box[3] - pad_y, 0)
             scale_x = orig_w / new_w if new_w > 0 else 1
             scale_y = orig_h / new_h if new_h > 0 else 1
             x1 = int(x1 * scale_x)
@@ -365,6 +410,16 @@ async def predict_base64(payload: ImagePayload):
             logger.info(f"Cropping original image: x1={x1}, y1={y1}, x2={x2}, y2={y2}")
             image, _ = read_file_as_image(image_data)
             cropped_image = image[y1:y2, x1:x2]
+            # Debug: Save images
+            os.makedirs('static/debug', exist_ok=True)
+            try:
+                Image.fromarray(image).save('static/debug/debug_original.jpg')
+                Image.fromarray(cropped_image).save('static/debug/debug_cropped.jpg')
+                img_copy = image.copy()
+                cv2.rectangle(img_copy, (x1, y1), (x2, y2), (255, 0, 0), 2)
+                cv2.imwrite('static/debug/debug_box.jpg', cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
+            except Exception as e:
+                logger.error(f"Error saving debug images: {e}")
             authenticity_result = classify_authenticity(cropped_image)
             result["authenticity"] = authenticity_result
             cropped_filename = f"cropped_{result['raw_class']}_{uuid.uuid4().hex}.jpg"

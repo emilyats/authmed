@@ -6,7 +6,7 @@ import axios from 'axios';
 import mime from 'mime';
 import * as FileSystem from 'expo-file-system';
 
-const API_URL = 'http://192.168.5.243:8003';
+const API_URL = 'http://172.20.10.3:8003';
 
 // Utility to ensure file:// URI for Android uploads
 async function ensureFileUri(uri) {
@@ -72,7 +72,16 @@ export default function AnalyzingScreen() {
         }
       );
       if (response.data.class === 'unknown' || response.data.confidence < 0.1) {
-        alert('No medicine detected or image is too blurry. Please try again.');
+        const msg = response.data.message;
+        if (msg === 'Medicine is not included in system.' || msg === 'Unsupported class detected') {
+          Alert.alert('Not Included', 'Medicine is not included in system.');
+        } else if (msg === 'Image is unclear. Please try again with a clearer photo.') {
+          Alert.alert('Blurry Image', msg);
+        } else if (msg === 'Image has poor lighting. Please retake in better conditions.') {
+          Alert.alert('Poor lighting', msg);
+        } else {
+          Alert.alert('Error', 'No medicine detected or image is too unclear. Please try again.');
+        }
         router.back();
         return;
       }
