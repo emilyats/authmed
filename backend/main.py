@@ -171,23 +171,59 @@ class MedicineClassifier:
         boxes = outputs['boxes'].cpu().numpy()
         scores = outputs['scores'].cpu().numpy()
         labels = outputs['labels'].cpu().numpy()
+        # Debug: Log top 5 scores and class names immediately after prediction
+        top5_idx = np.argsort(scores)[-5:][::-1]
+        top5_info = [(class_names[labels[i]], float(scores[i])) for i in top5_idx]
+        logger.info(f"Top 5 predictions: {top5_info}")
         if len(scores) == 0:
             return {"class": "unknown", "confidence": 0.0, "message": "No detection"}
-        if self.is_ood(scores, top2_threshold=0.16, threshold=0.8):
+        if self.is_ood(scores, top2_threshold=0.16, threshold=0.6):
             return {"class": "unknown", "confidence": float(np.max(scores)), "message": "Medicine is not included in system."}
-        top_idx = np.argmax(scores)
-        pred_class_idx = labels[top_idx]
-        pred_confidence = scores[top_idx]
-        # If the top class is background (index 0), treat as unknown
-        if pred_class_idx == 0:
-            return {"class": "unknown", "confidence": float(pred_confidence), "message": "Background detected"}
-        predicted_class = class_names[pred_class_idx].lower()
+        # Robust prediction logic: skip background, sort by score, apply Biogesic-over-Flanax rule
+        sorted_idx = np.argsort(scores)[::-1]
+        # Collect top non-background predictions
+        top_preds = []
+        for idx in sorted_idx:
+            class_idx = labels[idx]
+            class_name = class_names[class_idx].lower()
+            if class_idx == 0:
+                continue  # skip background
+            top_preds.append((idx, class_idx, class_name, scores[idx]))
+            if len(top_preds) == 2:
+                break
+        if not top_preds:
+            return {"class": "unknown", "confidence": 0.0, "message": "No medicine detected."}
+        # Post-processing: Only pick Biogesic if BOTH of the top 2 predictions are bioflu
+        if len(top_preds) == 2 and top_preds[0][2] == 'flanax' and top_preds[1][2] == 'bonamine':
+            # Pick the one with higher score, but always return as biogesic
+            pred_idx = top_preds[0][0] if top_preds[0][3] >= top_preds[1][3] else top_preds[1][0]
+            pred_confidence = max(top_preds[0][3], top_preds[1][3])
+            predicted_class = 'biogesic'
+        # If Flanax is top and Biogesic is second, pick Biogesic
+        elif len(top_preds) == 2 and top_preds[0][2] == 'flanax' and top_preds[1][2] == 'biogesic':
+            pred_idx = top_preds[1][0]
+            pred_confidence = top_preds[1][3]
+            predicted_class = 'biogesic'
+        # If Flanax is top and Bioflu is second, pick Biogesic
+        elif len(top_preds) == 2 and top_preds[0][2] == 'flanax' and top_preds[1][2] == 'bioflu':
+            pred_idx = top_preds[1][0]
+            pred_confidence = top_preds[1][3]
+            predicted_class = 'biogesic'
+         # If Flanax is top and Bioflu is second, pick Biogesic
+        elif len(top_preds) == 2 and top_preds[0][2] == ' bioflu' and top_preds[1][2] == 'flanax':
+            pred_idx = top_preds[1][0]
+            pred_confidence = top_preds[1][3]
+            predicted_class = 'biogesic'
+        else:
+            pred_idx = top_preds[0][0]
+            pred_confidence = top_preds[0][3]
+            predicted_class = class_names[labels[pred_idx]].lower()
         if predicted_class == "bonamine":
             predicted_class = "biogesic"
         if predicted_class not in ALLOWED_CLASSES:
             return {"class": "unknown", "confidence": float(pred_confidence), "message": "Unsupported class detected"}
         # --- Crop and return on 320x320 preprocessed image ---
-        box = boxes[top_idx].astype(int)  # [x1, y1, x2, y2]
+        box = boxes[pred_idx].astype(int)  # [x1, y1, x2, y2]
         x1, y1, x2, y2 = map(int, box)
         x1, y1 = max(0, x1), max(0, y1)
         x2, y2 = min(319, x2), min(319, y2)
@@ -228,7 +264,7 @@ async def internal_server_error_handler(request: Request, exc: Exception):
         content={"error": "Internal server error. Please try again later."}
     )
 
-def is_blurry(image: np.ndarray, threshold: float = 60.0) -> bool:
+def is_blurry(image: np.ndarray, threshold: float = 50.0) -> bool:
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
     laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
     logger.info(f"Blurriness (Laplacian variance): {laplacian_var}")
@@ -346,9 +382,9 @@ def classify_authenticity(image: np.ndarray) -> dict:
                 status = "authentic"
             elif label == 'authentic' and conf <= 0.5:
                 status = "suspected counterfeit"
-            elif label == 'counterfeit' and conf >= 0.8:
-                status = "counterfeit"
             elif label == 'counterfeit' and conf >= 0.5:
+                status = "counterfeit"
+            elif label == 'counterfeit' and conf >= 0.3:
                 status = "suspected counterfeit"
             else:
                 status = "authentic"

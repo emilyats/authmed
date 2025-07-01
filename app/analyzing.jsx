@@ -6,7 +6,7 @@ import axios from 'axios';
 import mime from 'mime';
 import * as FileSystem from 'expo-file-system';
 
-const API_URL = 'http://172.20.10.3:8003';
+const API_URL = 'http://192.168.1.14:8003';
 
 // Utility to ensure file:// URI for Android uploads
 async function ensureFileUri(uri) {
