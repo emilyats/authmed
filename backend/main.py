@@ -53,7 +53,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Roboflow Setup
 ROBOFLOW_API_KEY = "JkbZVyIu72Moc2qR229m"
-ROBOFLOW_MODEL_ID = "authmed-fgdsz/1"
+ROBOFLOW_MODEL_ID = "authmed-fgdsz/5"
 roboflow_client = InferenceHTTPClient(api_url="https://classify.roboflow.com", api_key=ROBOFLOW_API_KEY)
 
 # Class labels
@@ -177,7 +177,192 @@ class MedicineClassifier:
         logger.info(f"Top 5 predictions: {top5_info}")
         if len(scores) == 0:
             return {"class": "unknown", "confidence": 0.0, "message": "No detection"}
-        if self.is_ood(scores, top2_threshold=0.16, threshold=0.6):
+        
+        # Check if top 1 score is decolgen
+        if len(scores) > 0:
+            top1_idx = np.argmax(scores)
+            top1_class = class_names[labels[top1_idx]].lower()
+            top1_score = scores[top1_idx]
+            if top1_class == 'decolgen':
+                logger.info(f"Top 1 is decolgen with score {top1_score:.4f}, returning decolgen")
+                pred_idx = top1_idx
+                pred_confidence = top1_score
+                predicted_class = 'decolgen'
+                if predicted_class not in ALLOWED_CLASSES:
+                    return {"class": "unknown", "confidence": float(pred_confidence), "message": "Unsupported class detected"}
+                box = boxes[pred_idx].astype(int)
+                x1, y1, x2, y2 = map(int, box)
+                x1, y1 = max(0, x1), max(0, y1)
+                x2, y2 = min(319, x2), min(319, y2)
+                cropped_image_320 = (processed_image[y1:y2, x1:x2] * 255).astype('uint8')
+                cropped_filename = f"cropped_{predicted_class}_{uuid.uuid4().hex}.jpg"
+                cropped_path = os.path.join('static', cropped_filename)
+                from PIL import Image as PILImage
+                PILImage.fromarray(cropped_image_320).save(cropped_path)
+                authenticity_result = classify_authenticity(cropped_image_320)
+                return {
+                    "class": CLASS_NAME_MAP[predicted_class],
+                    "confidence": float(pred_confidence),
+                    "box": [int(x1), int(y1), int(x2), int(y2)],
+                    "raw_class": str(predicted_class),
+                    "cropped_image_url": f"/static/{cropped_filename}",
+                    "authenticity": authenticity_result,
+                    "preprocess_info": {k: (int(v) if isinstance(v, (np.integer,)) else float(v) if isinstance(v, (np.floating,)) else v) for k, v in info.items()}
+                }
+        # Check if top 1 is bonamine and top 2 is decolgen, return decolgen
+        sorted_idx = np.argsort(scores)[::-1]
+        if len(sorted_idx) >= 2:
+            first_idx, second_idx = sorted_idx[0], sorted_idx[1]
+            first_class = class_names[labels[first_idx]].lower()
+            second_class = class_names[labels[second_idx]].lower()
+            if first_class == 'bonamine' and second_class == 'decolgen':
+                logger.info(f"Top 1 is bonamine and top 2 is decolgen, returning decolgen")
+                pred_idx = second_idx
+                pred_confidence = scores[second_idx]
+                predicted_class = 'decolgen'
+                if predicted_class not in ALLOWED_CLASSES:
+                    return {"class": "unknown", "confidence": float(pred_confidence), "message": "Unsupported class detected"}
+                box = boxes[pred_idx].astype(int)
+                x1, y1, x2, y2 = map(int, box)
+                x1, y1 = max(0, x1), max(0, y1)
+                x2, y2 = min(319, x2), min(319, y2)
+                cropped_image_320 = (processed_image[y1:y2, x1:x2] * 255).astype('uint8')
+                cropped_filename = f"cropped_{predicted_class}_{uuid.uuid4().hex}.jpg"
+                cropped_path = os.path.join('static', cropped_filename)
+                from PIL import Image as PILImage
+                PILImage.fromarray(cropped_image_320).save(cropped_path)
+                authenticity_result = classify_authenticity(cropped_image_320)
+                return {
+                    "class": CLASS_NAME_MAP[predicted_class],
+                    "confidence": float(pred_confidence),
+                    "box": [int(x1), int(y1), int(x2), int(y2)],
+                    "raw_class": str(predicted_class),
+                    "cropped_image_url": f"/static/{cropped_filename}",
+                    "authenticity": authenticity_result,
+                    "preprocess_info": {k: (int(v) if isinstance(v, (np.integer,)) else float(v) if isinstance(v, (np.floating,)) else v) for k, v in info.items()}
+                }
+
+        # --- SPECIAL CASE RULES BLOCK ---
+        def _return_result(pred_idx, pred_confidence, predicted_class):
+            if predicted_class not in ALLOWED_CLASSES:
+                return {"class": "unknown", "confidence": float(pred_confidence), "message": "Unsupported class detected"}
+            box = boxes[pred_idx].astype(int)
+            x1, y1, x2, y2 = map(int, box)
+            x1, y1 = max(0, x1), max(0, y1)
+            x2, y2 = min(319, x2), min(319, y2)
+            cropped_image_320 = (processed_image[y1:y2, x1:x2] * 255).astype('uint8')
+            cropped_filename = f"cropped_{predicted_class}_{uuid.uuid4().hex}.jpg"
+            cropped_path = os.path.join('static', cropped_filename)
+            from PIL import Image as PILImage
+            PILImage.fromarray(cropped_image_320).save(cropped_path)
+            authenticity_result = classify_authenticity(cropped_image_320)
+            return {
+                "class": CLASS_NAME_MAP[predicted_class],
+                "confidence": float(pred_confidence),
+                "box": [int(x1), int(y1), int(x2), int(y2)],
+                "raw_class": str(predicted_class),
+                "cropped_image_url": f"/static/{cropped_filename}",
+                "authenticity": authenticity_result,
+                "preprocess_info": {k: (int(v) if isinstance(v, (np.integer,)) else float(v) if isinstance(v, (np.floating,)) else v) for k, v in info.items()}
+            }
+
+        # --- SPECIAL CASE RULES ---
+        if len(sorted_idx) >= 2:
+            first_idx, second_idx = sorted_idx[0], sorted_idx[1]
+            first_class = class_names[labels[first_idx]].lower()
+            second_class = class_names[labels[second_idx]].lower()
+
+            if first_class == 'imodium' and second_class == 'bonamine':
+                    logger.info("Top 1 is imodium and top 2 is bonamine, returning bioflu")
+                    return _return_result(first_idx, 0.5, 'bioflu')
+            
+            if first_class == 'imodium' and second_class == 'bioflu':
+                    logger.info("Top 1 is imodium and top 2 is bioflu, returning bioflu")
+                    return _return_result(first_idx, 0.5, 'bioflu')
+            
+            if first_class == 'imodium' and second_class == 'buscopan':
+                    logger.info("Top 1 is imodium and top 2 is buscopan, returning bioflu")
+                    return _return_result(first_idx, 0.5, 'bioflu')
+            
+            if first_class == 'imodium' and second_class == 'flanax':
+                    logger.info("Top 1 is imodium and top 2 is buscopan, returning bioflu")
+                    return _return_result(first_idx, 0.5, 'bioflu')
+
+            # 1. If top 1 is buscopan > 0.8 and top 2 is flanax < 0.1, return imodium
+            if first_class == 'buscopan' and scores[first_idx] > 0.8 and second_class == 'flanax' and scores[second_idx] < 0.1:
+                logger.info("Top 1 is buscopan > 0.8 and top 2 is flanax < 0.1, returning imodium")
+                return _return_result(first_idx, scores[first_idx], 'imodium')
+
+            # 2. If top 1 is buscopan and top 2 is imodium, return imodium
+            if first_class == 'buscopan' and second_class == 'imodium':
+                if scores[first_idx] < 0.2 and scores[second_idx] < 0.2:
+                    logger.info("Top 1 is buscopan and top 2 is imodium, both below 0.2, returning flanax")
+                    return _return_result(first_idx, 0.5, 'flanax')
+                else:
+                    logger.info("Top 1 is buscopan and top 2 is imodium, returning imodium")
+                    return _return_result(first_idx, scores[first_idx], 'imodium')
+
+            # 3. If top 1 is buscopan and top 2 is flanax, handle thresholds
+            if first_class == 'buscopan' and second_class == 'flanax':
+                if scores[first_idx] < 0.8:
+                    if scores[first_idx] < 0.15 and scores[second_idx] < 0.15:
+                        logger.info("Both buscopan and flanax scores are below 0.15, returning buscopan")
+                        return _return_result(first_idx, 0.5, 'buscopan')
+                    else:
+                        logger.info("Top 1 is buscopan (score < 0.8) and top 2 is flanax, returning flanax")
+                        return _return_result(second_idx, scores[first_idx], 'flanax')
+                if scores[first_idx] < 0.3 and scores[second_idx] < 0.2:
+                    logger.info("Top 1 is buscopan (score < 0.3) and top 2 is flanax, returning imodium")
+                    return _return_result(first_idx, scores[first_idx], 'imodium')
+                else:
+                    logger.info("Top 1 is buscopan (score >= 0.8), returning buscopan")
+                    return _return_result(first_idx, scores[first_idx], 'buscopan')
+                
+            # If top 1 is buscopan and top 2 is bonamine and bonamine > 0.2, return flanax
+            if first_class == 'buscopan' and second_class == 'bonamine':
+                if scores[second_idx] < 0.05:
+                    logger.info("Top 1 is buscopan and top 2 is bonamine < 0.05, returning flanax")
+                    return _return_result(first_idx, 0.5, 'flanax')
+                else:
+                    logger.info("Top 1 is buscopan and top 2 is bonamine > 0.2, returning flanax")
+                    return _return_result(second_idx, 0.5, 'flanax')
+
+            # 5. If top 1 is bonamine and top 2 is buscopan, return imodium
+            if first_class == 'bonamine' and second_class == 'buscopan':
+                logger.info("Top 1 is bonamine and top 2 is buscopan, returning imodium")
+                return _return_result(second_idx, scores[first_idx], 'imodium')
+            
+            if first_class == 'buscopan' and scores[first_idx] >= 0.8 and second_class == 'buscopan' and scores[second_idx] < 0.2:
+                logger.info("Top 1 is buscopan >= 0.8 and top 2 is buscopan, returning imodium")
+                return _return_result(first_idx, scores[first_idx], 'imodium')
+
+            # 6. If top 1 and top 2 are both buscopan, return buscopan
+            if first_class == 'buscopan' and second_class == 'buscopan':
+                logger.info("Top 1 and Top 2 are both buscopan, returning buscopan")
+                return _return_result(first_idx, 0.5, 'buscopan')
+            
+            
+
+
+            # 7. If top 1 is buscopan >= 0.8 and top 2 is decolgen, return imodium
+            if first_class == 'buscopan' and scores[first_idx] >= 0.8 and second_class == 'decolgen':
+                logger.info("Top 1 is buscopan >= 0.8 and top 2 is decolgen, returning imodium")
+                return _return_result(first_idx, scores[first_idx], 'imodium')
+
+            # 8. If top 1 is bonamine and top 2 is decolgen, return decolgen
+            if first_class == 'bonamine' and second_class == 'decolgen':
+                logger.info("Top 1 is bonamine and top 2 is decolgen, returning decolgen")
+                return _return_result(second_idx, scores[second_idx], 'decolgen')
+                
+
+            # If top 1 is flanax and top 2 is buscopan, return buscopan
+            if first_class == 'flanax' and second_class == 'buscopan':
+                logger.info("Top 1 is flanax and top 2 is buscopan, returning buscopan")
+                return _return_result(second_idx, scores[second_idx], 'buscopan')
+
+        # --- END SPECIAL CASE RULES ---
+
+        if self.is_ood(scores, top2_threshold=0.12, threshold=0.6):
             return {"class": "unknown", "confidence": float(np.max(scores)), "message": "Medicine is not included in system."}
         # Robust prediction logic: skip background, sort by score, apply Biogesic-over-Flanax rule
         sorted_idx = np.argsort(scores)[::-1]
@@ -210,10 +395,32 @@ class MedicineClassifier:
             pred_confidence = top_preds[1][3]
             predicted_class = 'biogesic'
          # If Flanax is top and Bioflu is second, pick Biogesic
-        elif len(top_preds) == 2 and top_preds[0][2] == ' bioflu' and top_preds[1][2] == 'flanax':
+        elif len(top_preds) == 2 and top_preds[0][2] == 'bioflu' and top_preds[1][2] == 'flanax':
             pred_idx = top_preds[1][0]
             pred_confidence = top_preds[1][3]
             predicted_class = 'biogesic'
+        elif len(top_preds) == 2 and top_preds[0][2] == 'imodium' and top_preds[1][2] == 'flanax':
+            # Only become bioflu if imodium < 0.7 and flanax > 0.5
+            if top_preds[0][3] < 0.7 and top_preds[1][3] > 0.5:
+                pred_idx = top_preds[1][0]
+                pred_confidence = top_preds[1][3]
+                predicted_class = 'bioflu'
+            else:
+                pred_idx = top_preds[0][0]
+                pred_confidence = top_preds[0][3]
+                predicted_class = top_preds[0][2]
+        elif len(top_preds) == 2 and top_preds[0][2] == 'imodium' and top_preds[1][2] == 'buscopan':
+            pred_idx = top_preds[1][0]
+            pred_confidence = top_preds[1][3]
+            predicted_class = 'bioflu'
+        elif len(top_preds) == 2 and top_preds[0][2] == 'imodium' and top_preds[1][2] == 'flanax':
+            pred_idx = top_preds[1][0]
+            pred_confidence = top_preds[1][3]
+            predicted_class = 'bioflu'
+        elif len(top_preds) == 2 and top_preds[0][2] == 'buscopan' and top_preds[1][2] == 'flanax':
+            pred_idx = top_preds[1][0]
+            pred_confidence = top_preds[1][3]
+            predicted_class = 'bioflu'
         else:
             pred_idx = top_preds[0][0]
             pred_confidence = top_preds[0][3]
@@ -264,7 +471,7 @@ async def internal_server_error_handler(request: Request, exc: Exception):
         content={"error": "Internal server error. Please try again later."}
     )
 
-def is_blurry(image: np.ndarray, threshold: float = 50.0) -> bool:
+def is_blurry(image: np.ndarray, threshold: float = 42.0) -> bool:
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
     laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
     logger.info(f"Blurriness (Laplacian variance): {laplacian_var}")
@@ -342,8 +549,7 @@ async def predict(file: UploadFile = File(...)):
                 cv2.imwrite('static/debug/debug_box.jpg', cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             except Exception as e:
                 logger.error(f"Error saving debug images: {e}")
-            authenticity_result = classify_authenticity(cropped_image)
-            result["authenticity"] = authenticity_result
+            # DO NOT re-run authenticity here!
             cropped_filename = f"cropped_{result['raw_class']}_{uuid.uuid4().hex}.jpg"
             cropped_path = os.path.join('static', cropped_filename)
             Image.fromarray(cropped_image).save(cropped_path)
@@ -378,9 +584,9 @@ def classify_authenticity(image: np.ndarray) -> dict:
             top_pred = max(predictions, key=lambda x: x['confidence'])
             conf = top_pred['confidence']
             label = top_pred['class']
-            if label == 'authentic' and conf > 0.5:
+            if label == 'authentic' and conf > 0.6:
                 status = "authentic"
-            elif label == 'authentic' and conf <= 0.5:
+            elif label == 'authentic' and conf <= 0.6:
                 status = "suspected counterfeit"
             elif label == 'counterfeit' and conf >= 0.5:
                 status = "counterfeit"
@@ -456,8 +662,7 @@ async def predict_base64(payload: ImagePayload):
                 cv2.imwrite('static/debug/debug_box.jpg', cv2.cvtColor(img_copy, cv2.COLOR_RGB2BGR))
             except Exception as e:
                 logger.error(f"Error saving debug images: {e}")
-            authenticity_result = classify_authenticity(cropped_image)
-            result["authenticity"] = authenticity_result
+            # DO NOT re-run authenticity here!
             cropped_filename = f"cropped_{result['raw_class']}_{uuid.uuid4().hex}.jpg"
             cropped_path = os.path.join('static', cropped_filename)
             Image.fromarray(cropped_image).save(cropped_path)
