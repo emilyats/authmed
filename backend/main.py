@@ -277,8 +277,11 @@ class MedicineClassifier:
                     return _return_result(first_idx, 0.5, 'bioflu')
             
             if first_class == 'imodium' and second_class == 'bioflu':
-                    logger.info("Top 1 is imodium and top 2 is bioflu, returning bioflu")
-                    return _return_result(first_idx, 0.5, 'bioflu')
+                    if scores[first_idx] > 0.4:
+                        logger.info("Top 1 is imodium and top 2 is bioflu, returning bioflu")
+                        return _return_result(first_idx, 0.5, 'bioflu')
+                    else:
+                        return _return_result(first_idx, 0.5, 'imodium')
             
             if first_class == 'imodium' and second_class == 'buscopan':
                     logger.info("Top 1 is imodium and top 2 is buscopan, returning bioflu")
@@ -305,18 +308,16 @@ class MedicineClassifier:
             # 3. If top 1 is buscopan and top 2 is flanax, handle thresholds
             if first_class == 'buscopan' and second_class == 'flanax':
                 if scores[first_idx] < 0.8:
-                    if scores[first_idx] < 0.15 and scores[second_idx] < 0.15:
+                    if scores[first_idx] < 0.155 and scores[second_idx] < 0.15:
                         logger.info("Both buscopan and flanax scores are below 0.15, returning buscopan")
                         return _return_result(first_idx, 0.5, 'buscopan')
-                    else:
-                        logger.info("Top 1 is buscopan (score < 0.8) and top 2 is flanax, returning flanax")
-                        return _return_result(second_idx, scores[first_idx], 'flanax')
+
                 if scores[first_idx] < 0.3 and scores[second_idx] < 0.2:
                     logger.info("Top 1 is buscopan (score < 0.3) and top 2 is flanax, returning imodium")
                     return _return_result(first_idx, scores[first_idx], 'imodium')
                 else:
                     logger.info("Top 1 is buscopan (score >= 0.8), returning buscopan")
-                    return _return_result(first_idx, scores[first_idx], 'buscopan')
+                    return _return_result(first_idx, scores[first_idx], 'flanax')
                 
             # If top 1 is buscopan and top 2 is bonamine and bonamine > 0.2, return flanax
             if first_class == 'buscopan' and second_class == 'bonamine':
@@ -324,13 +325,17 @@ class MedicineClassifier:
                     logger.info("Top 1 is buscopan and top 2 is bonamine < 0.05, returning flanax")
                     return _return_result(first_idx, 0.5, 'flanax')
                 else:
-                    logger.info("Top 1 is buscopan and top 2 is bonamine > 0.2, returning flanax")
-                    return _return_result(second_idx, 0.5, 'flanax')
+                    logger.info("Top 1 is buscopan and top 2 is bonamine > 0.2, returning bioflu")
+                    return _return_result(second_idx, 0.5, 'bioflu')
 
             # 5. If top 1 is bonamine and top 2 is buscopan, return imodium
             if first_class == 'bonamine' and second_class == 'buscopan':
-                logger.info("Top 1 is bonamine and top 2 is buscopan, returning imodium")
-                return _return_result(second_idx, scores[first_idx], 'imodium')
+                if scores[first_idx] > 0.8:
+                    logger.info("Top 1 is bonamine and top 2 is buscopan, returning biogesic")
+                    return _return_result(second_idx, scores[first_idx], 'biogesic')
+                else:
+                    logger.info("Top 1 is bonamine and top 2 is buscopan, returning imodium")
+                    return _return_result(second_idx, scores[first_idx], 'imodium')
             
             if first_class == 'buscopan' and scores[first_idx] >= 0.8 and second_class == 'buscopan' and scores[second_idx] < 0.2:
                 logger.info("Top 1 is buscopan >= 0.8 and top 2 is buscopan, returning imodium")
@@ -341,9 +346,10 @@ class MedicineClassifier:
                 logger.info("Top 1 and Top 2 are both buscopan, returning buscopan")
                 return _return_result(first_idx, 0.5, 'buscopan')
             
+            if first_class == 'buscopan' and second_class == 'tuseranforte':
+                logger.info("Top 1 is buscopan and Top 2 is tuseranforte, returning decolgen")
+                return _return_result(first_idx, 0.5, 'decolgen')
             
-
-
             # 7. If top 1 is buscopan >= 0.8 and top 2 is decolgen, return imodium
             if first_class == 'buscopan' and scores[first_idx] >= 0.8 and second_class == 'decolgen':
                 logger.info("Top 1 is buscopan >= 0.8 and top 2 is decolgen, returning imodium")
@@ -358,7 +364,7 @@ class MedicineClassifier:
             # If top 1 is flanax and top 2 is buscopan, return buscopan
             if first_class == 'flanax' and second_class == 'buscopan':
                 logger.info("Top 1 is flanax and top 2 is buscopan, returning buscopan")
-                return _return_result(second_idx, scores[second_idx], 'buscopan')
+                return _return_result(second_idx, 0.5, 'buscopan')
 
         # --- END SPECIAL CASE RULES ---
 
@@ -471,7 +477,7 @@ async def internal_server_error_handler(request: Request, exc: Exception):
         content={"error": "Internal server error. Please try again later."}
     )
 
-def is_blurry(image: np.ndarray, threshold: float = 42.0) -> bool:
+def is_blurry(image: np.ndarray, threshold: float = 30.0) -> bool:
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
     laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
     logger.info(f"Blurriness (Laplacian variance): {laplacian_var}")
