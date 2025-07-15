@@ -36,3 +36,4 @@ yarn-error.*
 *.tsbuildinfo
 
 backend/static/
+backend/feedback/

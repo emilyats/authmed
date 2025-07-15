@@ -6,7 +6,7 @@ import numpy as np
 import torchvision
 from PIL import Image, ImageOps, ImageEnhance
 from io import BytesIO
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -20,6 +20,7 @@ from inference_sdk import InferenceHTTPClient
 import cv2
 from pydantic import BaseModel
 import base64
+import shutil
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -31,10 +32,11 @@ app = FastAPI()
 # CORS setup
 origins = [
     "*",  # adjust for production
-    "http://localhost:19006",
-    "exp://localhost:19000",
-    "http://172.20.10.3:8003",
-    "exp://172.20.10.3:8081"
+    "http://localhost:8003",
+    "exp://localhost:8003",
+    "http://192.168.1.14:8003",
+    "exp://192.168.1.14:8081",
+    "http://10.0.2.2:8003"
 ]
 logger.info(f"CORS origins: {origins}")
 app.add_middleware(
@@ -317,7 +319,7 @@ class MedicineClassifier:
                     return _return_result(first_idx, scores[first_idx], 'imodium')
                 else:
                     logger.info("Top 1 is buscopan (score >= 0.8), returning buscopan")
-                    return _return_result(first_idx, scores[first_idx], 'flanax')
+                    return _return_result(first_idx, scores[first_idx], 'buscopan')
                 
             # If top 1 is buscopan and top 2 is bonamine and bonamine > 0.2, return flanax
             if first_class == 'buscopan' and second_class == 'bonamine':
@@ -486,7 +488,7 @@ def is_blurry(image: np.ndarray, threshold: float = 30.0) -> bool:
     else:
         return False
 
-def is_poor_lighting(image: np.ndarray, min_brightness: float = 40, max_brightness: float = 220) -> bool:
+def is_poor_lighting(image: np.ndarray, min_brightness: float = 70, max_brightness: float = 220) -> bool:
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
     avg_brightness = gray.mean()
     logger.info(f"Average brightness: {avg_brightness}")
@@ -678,6 +680,28 @@ async def predict_base64(payload: ImagePayload):
     except Exception as e:
         logger.error(f"Prediction error (base64): {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+class FeedbackPayload(BaseModel):
+    image_id: str
+    actual_label: str  # 'authentic' or 'counterfeit'
+    incorrect_reason: str = None
+    corrected_medicine: str = None
+
+@app.post("/feedback")
+async def feedback(payload: FeedbackPayload):
+    src_path = os.path.join('static', payload.image_id)
+    if not os.path.exists(src_path):
+        return {"error": "Image not found"}
+    # Determine feedback folder
+    if payload.corrected_medicine:
+        dest_dir = os.path.join('feedback', payload.actual_label, payload.corrected_medicine)
+    else:
+        dest_dir = os.path.join('feedback', payload.actual_label)
+    os.makedirs(dest_dir, exist_ok=True)
+    dest_path = os.path.join(dest_dir, payload.image_id)
+    import shutil
+    shutil.copy2(src_path, dest_path)
+    return {"status": "saved", "path": dest_path}
 
 if __name__ == "__main__":
     import uvicorn

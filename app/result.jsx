@@ -1,20 +1,39 @@
-import React, { useState } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator, TextInput, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, Image, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator, TextInput, Platform, Alert, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { API_URL } from './(tabs)/home';
 import { FIREBASE_AUTH, FIREBASE_DB } from '../firebaseConfig';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import axios from 'axios';
+import { BlurView } from 'expo-blur';
+
+// Replace static API_URL with platform-aware version
+const getHost = () => {
+  return '192.168.1.14'; // <-- your computer's LAN IP
+};
+const API_URL = `http://${getHost()}:8003`;
+
 
 export default function ResultScreen() {
   const router = useRouter();
-  const { detectionResult: detectionResultStr } = useLocalSearchParams();
+  const { detectionResult: drStr } = useLocalSearchParams();
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [note, setNote] = useState('');
-  // Parse detectionResult from string if passed as JSON
-  const detectionResult = typeof detectionResultStr === 'string' ? JSON.parse(detectionResultStr) : detectionResultStr;
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const [actualLabel, setActualLabel] = useState('authentic');
+  const [submitting, setSubmitting] = useState(false);
+  const [feedbackModalVisible, setFeedbackModalVisible] = useState(false);
+  const [incorrectReason, setIncorrectReason] = useState(null);
+  const [showMedicineCorrection, setShowMedicineCorrection] = useState(false);
+  const [showAuthCorrection, setShowAuthCorrection] = useState(false);
+  const [correctedMedicine, setCorrectedMedicine] = useState(null);
+  const medicineOptions = [
+    'biogesic', 'bioflu', 'buscopan', 'decolgen', 'flanax', 'imodium'
+  ];
+  const detectionResult = typeof drStr === 'string' ? JSON.parse(drStr) : drStr;
 
   if (!detectionResult || detectionResult.class === 'error') {
     return (
@@ -101,6 +120,47 @@ export default function ResultScreen() {
     }
   };
 
+  // Feedback submission handler
+  const handleSubmitFeedback = async () => {
+    const imageId = detectionResult.cropped_image_url?.split('/').pop();
+    if (!imageId) {
+      Alert.alert('Error', 'No image to send feedback for.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const payload = {
+        image_id: imageId,
+        actual_label: actualLabel,
+        incorrect_reason: incorrectReason,
+        corrected_medicine: correctedMedicine,
+      };
+      const { data } = await axios.post(
+        `${API_URL}/feedback`,
+        payload,
+        { timeout: 5000 }
+      );
+      setFeedbackSubmitted(true);
+      Alert.alert('Success', 'Thank you for your feedback!');
+      setShowMedicineCorrection(false);
+      setShowAuthCorrection(false);
+      setShowFeedback(false);
+      setIncorrectReason(null);
+      setCorrectedMedicine(null);
+    } catch (err) {
+      console.error('Feedback error:', err);
+      const msg =
+        err.response?.data?.detail ||
+        err.response?.data?.error ||
+        err.message ||
+        'Failed to submit feedback';
+      Alert.alert('Feedback Error', msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAwareScrollView 
@@ -160,6 +220,184 @@ export default function ResultScreen() {
                 </Text>
               </View>
             )}
+            {/* Feedback Button for Professionals */}
+            <View style={{ alignItems: 'center', marginBottom: 8 }}>
+              <TouchableOpacity
+                style={[
+                  styles.feedbackOutlineButton,
+                  { flexDirection: 'column', alignItems: 'center', minWidth: 180, justifyContent: 'center' }
+                ]}
+                onPress={() => {
+                  if (feedbackSubmitted) {
+                    Alert.alert("You've already submitted feedback!");
+                  } else {
+                    setFeedbackModalVisible(true);
+                  }
+                }}
+              >
+                <Ionicons name="medkit" size={22} color="#145185" style={{ marginBottom: 4 }} />
+                <Text style={styles.feedbackOutlineButtonText}>Are you a healthcare professional?{"\n"}Give feedback!</Text>
+              </TouchableOpacity>
+            </View>
+            {/* Feedback Modal */}
+            <Modal
+              visible={feedbackModalVisible}
+              animationType="slide"
+              transparent={true}
+              onRequestClose={() => setFeedbackModalVisible(false)}
+            >
+              <BlurView intensity={30} tint="light" style={styles.modalOverlay}>
+                <View style={[styles.feedbackBox, styles.shadow, { width: '90%' }]}> 
+                  <TouchableOpacity style={{ position: 'absolute', top: 10, right: 10, zIndex: 2 }} onPress={() => setFeedbackModalVisible(false)}>
+                    <Ionicons name="close" size={28} color="#145185" />
+                  </TouchableOpacity>
+                  {/* Step 1: Was result correct? */}
+                  {!feedbackSubmitted && !showFeedback && !showMedicineCorrection && !showAuthCorrection && (
+                    <>
+                      <Ionicons name="help-circle" size={28} color="#145185" style={{ marginBottom: 6, marginTop: 10 }} />
+                      <Text style={styles.feedbackPrompt}>
+                        Do you think the result was correct?
+                      </Text>
+                      <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+                        <TouchableOpacity
+                          style={[styles.feedbackButton, { backgroundColor: '#4CAF50' }]}
+                          onPress={() => { setFeedbackSubmitted(true); }}
+                        >
+                          <Ionicons name="checkmark-circle" size={18} color="white" style={{ marginRight: 6 }} />
+                          <Text style={styles.feedbackButtonText}>Yes</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.feedbackButton, { backgroundColor: '#F44336' }]}
+                          onPress={() => { setShowFeedback(true); setIncorrectReason(null); }}
+                        >
+                          <Ionicons name="close-circle" size={18} color="white" style={{ marginRight: 6 }} />
+                          <Text style={styles.feedbackButtonText}>No</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </>
+                  )}
+                  {/* Step 2: What was incorrect? */}
+                  {!feedbackSubmitted && showFeedback && !showMedicineCorrection && !showAuthCorrection && (
+                    <>
+                      <Ionicons name="alert-circle" size={26} color="#145185" style={{ marginBottom: 6, marginTop: 10 }} />
+                      <Text style={styles.feedbackPrompt}>
+                        What was incorrect about the prediction?
+                      </Text>
+                      <View style={{ flexDirection: 'row', gap: 12, marginVertical: 10, justifyContent: 'center' }}>
+                        <TouchableOpacity
+                          style={[styles.feedbackButton, { backgroundColor: incorrectReason === 'medicine' ? '#145185' : '#E0E0E0' }]}
+                          onPress={() => setIncorrectReason('medicine')}
+                        >
+                          <Text style={[styles.feedbackButtonText, { color: incorrectReason === 'medicine' ? 'white' : '#35383F' }]}>Medicine name</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.feedbackButton, { backgroundColor: incorrectReason === 'authenticity' ? '#145185' : '#E0E0E0' }]}
+                          onPress={() => setIncorrectReason('authenticity')}
+                        >
+                          <Text style={[styles.feedbackButtonText, { color: incorrectReason === 'authenticity' ? 'white' : '#35383F' }]}>Authenticity</Text>
+                        </TouchableOpacity>
+                      </View>
+                      <View style={{ flexDirection: 'row', gap: 12, marginBottom: 10, justifyContent: 'center' }}>
+                        <TouchableOpacity
+                          style={[styles.feedbackButton, { backgroundColor: incorrectReason === 'both' ? '#145185' : '#E0E0E0' }]}
+                          onPress={() => setIncorrectReason('both')}
+                        >
+                          <Text style={[styles.feedbackButtonText, { color: incorrectReason === 'both' ? 'white' : '#35383F' }]}>Both</Text>
+                        </TouchableOpacity>
+                      </View>
+                      <TouchableOpacity
+                        style={[styles.saveButton, { marginTop: 8, minWidth: 120, alignSelf: 'center' }]}
+                        onPress={() => {
+                          if (incorrectReason === 'medicine') {
+                            setShowMedicineCorrection(true);
+                          } else if (incorrectReason === 'authenticity') {
+                            setShowAuthCorrection(true);
+                          } else if (incorrectReason === 'both') {
+                            setShowMedicineCorrection(true);
+                          }
+                        }}
+                        disabled={!incorrectReason}
+                      >
+                        <Text style={styles.saveButtonText}>Next</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                  {/* Step 3: Medicine correction */}
+                  {showMedicineCorrection && !showAuthCorrection && (
+                    <>
+                      <Ionicons name="medkit" size={26} color="#145185" style={{ marginBottom: 6, marginTop: 10 }} />
+                      <Text style={styles.feedbackPrompt}>
+                        What is the correct medicine name?
+                      </Text>
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginVertical: 10 }}>
+                        {medicineOptions.map(opt => (
+                          <TouchableOpacity
+                            key={opt}
+                            style={[styles.feedbackButton, { backgroundColor: correctedMedicine === opt ? '#145185' : '#E0E0E0', margin: 4 }]}
+                            onPress={() => setCorrectedMedicine(opt)}
+                          >
+                            <Text style={[styles.feedbackButtonText, { color: correctedMedicine === opt ? 'white' : '#35383F' }]}>{opt.charAt(0).toUpperCase() + opt.slice(1)}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                      <TouchableOpacity
+                        style={[styles.saveButton, { marginTop: 8, minWidth: 120, alignSelf: 'center' }]}
+                        onPress={() => {
+                          if (incorrectReason === 'both') {
+                            setShowMedicineCorrection(false);
+                            setShowAuthCorrection(true);
+                          } else {
+                            handleSubmitFeedback();
+                          }
+                        }}
+                        disabled={!correctedMedicine}
+                      >
+                        <Text style={styles.saveButtonText}>Next</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                  {/* Step 4: Authenticity correction (after medicine or both) */}
+                  {showAuthCorrection && (
+                    <>
+                      <Ionicons name="create" size={26} color="#145185" style={{ marginBottom: 6, marginTop: 10 }} />
+                      <Text style={styles.feedbackPrompt}>
+                        What is the correct authenticity?
+                      </Text>
+                      <View style={{ flexDirection: 'row', gap: 12, marginVertical: 10 }}>
+                        <TouchableOpacity
+                          style={[styles.feedbackButton, { backgroundColor: actualLabel === 'authentic' ? '#4CAF50' : '#E0E0E0' }]}
+                          onPress={() => setActualLabel('authentic')}
+                        >
+                          <Ionicons name="shield-checkmark" size={18} color={actualLabel === 'authentic' ? 'white' : '#35383F'} style={{ marginRight: 6 }} />
+                          <Text style={[styles.feedbackButtonText, { color: actualLabel === 'authentic' ? 'white' : '#35383F' }]}>Authentic</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.feedbackButton, { backgroundColor: actualLabel === 'counterfeit' ? '#F44336' : '#E0E0E0' }]}
+                          onPress={() => setActualLabel('counterfeit')}
+                        >
+                          <Ionicons name="alert" size={18} color={actualLabel === 'counterfeit' ? 'white' : '#35383F'} style={{ marginRight: 6 }} />
+                          <Text style={[styles.feedbackButtonText, { color: actualLabel === 'counterfeit' ? 'white' : '#35383F' }]}>Counterfeit</Text>
+                        </TouchableOpacity>
+                      </View>
+                      <TouchableOpacity
+                        style={[styles.saveButton, { marginTop: 8, minWidth: 120, alignSelf: 'center' }]}
+                        onPress={handleSubmitFeedback}
+                        disabled={!actualLabel}
+                      >
+                        <Text style={styles.saveButtonText}>Submit</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                  {/* Step 5: Thank you */}
+                  {feedbackSubmitted && (
+                    <>
+                      <Ionicons name="checkmark-done-circle" size={28} color="#4CAF50" style={{ marginBottom: 6, marginTop: 10 }} />
+                      <Text style={[styles.feedbackPrompt, { color: '#4CAF50' }]}>Thank you for your feedback!</Text>
+                    </>
+                  )}
+                </View>
+              </BlurView>
+            </Modal>
 
             <TextInput
               style={styles.noteInput}
@@ -375,5 +613,63 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Montserrat_500Medium',
     marginBottom: 16,
+  },
+  feedbackBox: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 18,
+    alignItems: 'center',
+    marginVertical: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  feedbackPrompt: {
+    color: '#145185',
+    fontSize: 15,
+    fontFamily: 'Montserrat_500Medium',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  feedbackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    marginHorizontal: 4,
+  },
+  feedbackButtonText: {
+    fontSize: 15,
+    fontFamily: 'Montserrat_600SemiBold',
+    color: 'white',
+  },
+  shadow: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  feedbackOutlineButton: {
+    backgroundColor: 'white',
+    borderWidth: 2,
+    borderColor: '#145185',
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    marginVertical: 4,
+  },
+  feedbackOutlineButtonText: {
+    color: '#145185',
+    fontSize: 13,
+    fontFamily: 'Montserrat_500Medium',
+    textAlign: 'center',
   },
 });
