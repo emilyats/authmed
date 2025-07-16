@@ -10,7 +10,7 @@ import { BlurView } from 'expo-blur';
 
 // Replace static API_URL with platform-aware version
 const getHost = () => {
-  return '192.168.1.14'; // <-- your computer's LAN IP
+  return '172.20.10.6'; // <-- your computer's LAN IP
 };
 const API_URL = `http://${getHost()}:8003`;
 

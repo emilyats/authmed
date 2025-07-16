@@ -34,8 +34,8 @@ origins = [
     "*",  # adjust for production
     "http://localhost:8003",
     "exp://localhost:8003",
-    "http://192.168.1.14:8003",
-    "exp://192.168.1.14:8081",
+    "http://172.20.10.6:8003",
+    "exp://172.20.10.6:8003",
     "http://10.0.2.2:8003"
 ]
 logger.info(f"CORS origins: {origins}")
@@ -188,7 +188,7 @@ class MedicineClassifier:
             if top1_class == 'decolgen':
                 logger.info(f"Top 1 is decolgen with score {top1_score:.4f}, returning decolgen")
                 pred_idx = top1_idx
-                pred_confidence = top1_score
+                pred_confidence = 0.5
                 predicted_class = 'decolgen'
                 if predicted_class not in ALLOWED_CLASSES:
                     return {"class": "unknown", "confidence": float(pred_confidence), "message": "Unsupported class detected"}
@@ -274,9 +274,21 @@ class MedicineClassifier:
             first_class = class_names[labels[first_idx]].lower()
             second_class = class_names[labels[second_idx]].lower()
 
+            if first_class == 'bonamine' and second_class == 'bioflu':
+                    if scores[first_idx] > 0.75:
+                        logger.info("Top 1 is bonamine > 0.75 and top 2 is bioflu, returning bioflu")
+                        return _return_result(first_idx, 0.5, 'bioflu')
+                    else:
+                        logger.info("Top 1 is bonamine and top 2 is bioflu, returning biogesic")
+                        return _return_result(first_idx, 0.5, 'biogesic')
+                    
             if first_class == 'imodium' and second_class == 'bonamine':
-                    logger.info("Top 1 is imodium and top 2 is bonamine, returning bioflu")
-                    return _return_result(first_idx, 0.5, 'bioflu')
+                    if scores[first_idx] < 0.2 and scores[second_idx] < 0.2:
+                        logger.info("Top 1 is imodium < 0.2 and top 2 is bonamine < 0.2, returning imodium")
+                        return _return_result(first_idx, 0.5, 'imodium')
+                    elif scores[first_idx] > 0.7:
+                        logger.info("Top 1 is imodium > 0 .7 and top 2 is bonamine, returning bioflu")
+                        return _return_result(first_idx, 0.5, 'bioflu')
             
             if first_class == 'imodium' and second_class == 'bioflu':
                     if scores[first_idx] > 0.4:
@@ -286,21 +298,19 @@ class MedicineClassifier:
                         return _return_result(first_idx, 0.5, 'imodium')
             
             if first_class == 'imodium' and second_class == 'buscopan':
-                    logger.info("Top 1 is imodium and top 2 is buscopan, returning bioflu")
-                    return _return_result(first_idx, 0.5, 'bioflu')
+                    if scores[first_idx] < 0.5:
+                        return _return_result(first_idx, 0.5, 'imodium')
+                    else:
+                        logger.info("Top 1 is imodium and top 2 is buscopan, returning bioflu")
+                        return _return_result(first_idx, 0.5, 'bioflu')
             
             if first_class == 'imodium' and second_class == 'flanax':
-                    logger.info("Top 1 is imodium and top 2 is buscopan, returning bioflu")
-                    return _return_result(first_idx, 0.5, 'bioflu')
-
-            # 1. If top 1 is buscopan > 0.8 and top 2 is flanax < 0.1, return imodium
-            if first_class == 'buscopan' and scores[first_idx] > 0.8 and second_class == 'flanax' and scores[second_idx] < 0.1:
-                logger.info("Top 1 is buscopan > 0.8 and top 2 is flanax < 0.1, returning imodium")
-                return _return_result(first_idx, scores[first_idx], 'imodium')
-
+                    logger.info("Top 1 is imodium and top 2 is flanax, returning imodium")
+                    return _return_result(first_idx, 0.5, 'imodium')
+                 
             # 2. If top 1 is buscopan and top 2 is imodium, return imodium
             if first_class == 'buscopan' and second_class == 'imodium':
-                if scores[first_idx] < 0.2 and scores[second_idx] < 0.2:
+                if scores[second_idx] < 0.19:
                     logger.info("Top 1 is buscopan and top 2 is imodium, both below 0.2, returning flanax")
                     return _return_result(first_idx, 0.5, 'flanax')
                 else:
@@ -313,20 +323,29 @@ class MedicineClassifier:
                     if scores[first_idx] < 0.155 and scores[second_idx] < 0.15:
                         logger.info("Both buscopan and flanax scores are below 0.15, returning buscopan")
                         return _return_result(first_idx, 0.5, 'buscopan')
-
-                if scores[first_idx] < 0.3 and scores[second_idx] < 0.2:
+                if scores[first_idx] < 0.3 and scores[second_idx] < 0.25:
                     logger.info("Top 1 is buscopan (score < 0.3) and top 2 is flanax, returning imodium")
                     return _return_result(first_idx, scores[first_idx], 'imodium')
-                else:
+                if scores[first_idx] >= 0.75:
                     logger.info("Top 1 is buscopan (score >= 0.8), returning buscopan")
                     return _return_result(first_idx, scores[first_idx], 'buscopan')
+                if scores[first_idx] > 0.8 and scores[second_idx] < 0.15:
+                    logger.info("Top 1 is buscopan > 0.8 and top 2 is flanax < 0.1, returning imodium")
+                    return _return_result(first_idx, scores[first_idx], 'imodium')
+                else:
+                    return _return_result(first_idx, scores[first_idx], 'flanax')
                 
             # If top 1 is buscopan and top 2 is bonamine and bonamine > 0.2, return flanax
             if first_class == 'buscopan' and second_class == 'bonamine':
+                third_idx = sorted_idx[2] if len(sorted_idx) > 2 else None
+                third_class = class_names[labels[third_idx]].lower() if third_idx is not None else None
                 if scores[second_idx] < 0.05:
+                    if third_class == 'imodium' or third_class == 'tuseranforte':
+                        logger.info("Top 1 is buscopan, top 2 is bonamine < 0.05, and top 3 is imodium, returning imodium")
+                        return _return_result(third_idx, 0.5, 'imodium')
                     logger.info("Top 1 is buscopan and top 2 is bonamine < 0.05, returning flanax")
                     return _return_result(first_idx, 0.5, 'flanax')
-                else:
+                elif scores[second_idx] > 0.2:
                     logger.info("Top 1 is buscopan and top 2 is bonamine > 0.2, returning bioflu")
                     return _return_result(second_idx, 0.5, 'bioflu')
 
@@ -352,6 +371,10 @@ class MedicineClassifier:
                 logger.info("Top 1 is buscopan and Top 2 is tuseranforte, returning decolgen")
                 return _return_result(first_idx, 0.5, 'decolgen')
             
+            if first_class == 'buscopan' and second_class == 'bonamine':
+                logger.info("Top 1 is buscopan and Top 2 is bonamine, returning imodium")
+                return _return_result(first_idx, 0.5, 'imodium')
+            
             # 7. If top 1 is buscopan >= 0.8 and top 2 is decolgen, return imodium
             if first_class == 'buscopan' and scores[first_idx] >= 0.8 and second_class == 'decolgen':
                 logger.info("Top 1 is buscopan >= 0.8 and top 2 is decolgen, returning imodium")
@@ -360,17 +383,39 @@ class MedicineClassifier:
             # 8. If top 1 is bonamine and top 2 is decolgen, return decolgen
             if first_class == 'bonamine' and second_class == 'decolgen':
                 logger.info("Top 1 is bonamine and top 2 is decolgen, returning decolgen")
-                return _return_result(second_idx, scores[second_idx], 'decolgen')
+                return _return_result(second_idx, 0.5, 'decolgen')
                 
-
+            if first_class == 'bonamine' and second_class == 'imodium':
+                logger.info("Top 1 is bonamine and top 2 is imodium, returning bioflu")
+                return _return_result(second_idx, 0.5, 'bioflu')
+            
             # If top 1 is flanax and top 2 is buscopan, return buscopan
             if first_class == 'flanax' and second_class == 'buscopan':
-                logger.info("Top 1 is flanax and top 2 is buscopan, returning buscopan")
-                return _return_result(second_idx, 0.5, 'buscopan')
+                if scores[first_idx] > 0.7:
+                    logger.info("Top 1 is flanax and top 2 is buscopan, returning buscopan")
+                    return _return_result(second_idx, 0.5, 'buscopan')
+                else:
+                    return _return_result(first_idx, 0.5, 'flanax')
+                
+            if first_class == 'flanax' and second_class == 'bonamine':
+                if self.is_ood(scores, top2_threshold=0.12, threshold=0.5):
+                    return {"class": "unknown", "confidence": float(np.max(scores)), "message": "Medicine is not included in system."}
+            
+            if first_class == 'buscopan' and second_class == 'bonamine':
+                if self.is_ood(scores, top2_threshold=0.12, threshold=0.5):
+                    return {"class": "unknown", "confidence": float(np.max(scores)), "message": "Medicine is not included in system."}
+            
+            if first_class == 'buscopan' and second_class == 'biogesic':
+                if scores[first_idx] < 0.2 and scores[second_idx] < 0.2:
+                    return _return_result(second_idx, 0.5, 'flanax')
+                
+            if first_class == 'buscopan' and second_class == 'decolgen':
+                if scores[first_idx] < 0.6 and scores[second_idx] < 0.6:
+                    return _return_result(second_idx, 0.5, 'decolgen')
 
         # --- END SPECIAL CASE RULES ---
 
-        if self.is_ood(scores, top2_threshold=0.12, threshold=0.6):
+        if self.is_ood(scores, top2_threshold=0.12, threshold=0.5):
             return {"class": "unknown", "confidence": float(np.max(scores)), "message": "Medicine is not included in system."}
         # Robust prediction logic: skip background, sort by score, apply Biogesic-over-Flanax rule
         sorted_idx = np.argsort(scores)[::-1]
@@ -402,11 +447,6 @@ class MedicineClassifier:
             pred_idx = top_preds[1][0]
             pred_confidence = top_preds[1][3]
             predicted_class = 'biogesic'
-         # If Flanax is top and Bioflu is second, pick Biogesic
-        elif len(top_preds) == 2 and top_preds[0][2] == 'bioflu' and top_preds[1][2] == 'flanax':
-            pred_idx = top_preds[1][0]
-            pred_confidence = top_preds[1][3]
-            predicted_class = 'biogesic'
         elif len(top_preds) == 2 and top_preds[0][2] == 'imodium' and top_preds[1][2] == 'flanax':
             # Only become bioflu if imodium < 0.7 and flanax > 0.5
             if top_preds[0][3] < 0.7 and top_preds[1][3] > 0.5:
@@ -422,10 +462,6 @@ class MedicineClassifier:
             pred_confidence = top_preds[1][3]
             predicted_class = 'bioflu'
         elif len(top_preds) == 2 and top_preds[0][2] == 'imodium' and top_preds[1][2] == 'flanax':
-            pred_idx = top_preds[1][0]
-            pred_confidence = top_preds[1][3]
-            predicted_class = 'bioflu'
-        elif len(top_preds) == 2 and top_preds[0][2] == 'buscopan' and top_preds[1][2] == 'flanax':
             pred_idx = top_preds[1][0]
             pred_confidence = top_preds[1][3]
             predicted_class = 'bioflu'
@@ -479,7 +515,7 @@ async def internal_server_error_handler(request: Request, exc: Exception):
         content={"error": "Internal server error. Please try again later."}
     )
 
-def is_blurry(image: np.ndarray, threshold: float = 30.0) -> bool:
+def is_blurry(image: np.ndarray, threshold: float = 40.0) -> bool:
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
     laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
     logger.info(f"Blurriness (Laplacian variance): {laplacian_var}")
